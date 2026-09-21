@@ -102,6 +102,7 @@ class ActionCandidate:
     risk_class: RiskClass
     optimistic_utility: float
     requested_verifier: str | None = None
+    payload: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,6 +143,8 @@ class CvocDecision:
 class VerificationResult:
     verifier_id: str
     candidate_id: str
+    action_fingerprint: str
+    policy_version: str
     accepted: bool
     evidence: str
     attestation: str

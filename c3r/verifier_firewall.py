@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
-from .authority import sign_fields
+from .authority import action_fingerprint, sign_fields
 from .state_schema import ActionCandidate, RiskClass, VerificationResult
 
 
@@ -22,6 +22,7 @@ Verifier = Callable[[ActionCandidate], VerifierDecision]
 class VerifierPolicy:
     default_verifier: str
     by_risk: Mapping[RiskClass, str] = field(default_factory=dict)
+    version: str = "policy-v1"
 
     def select(self, candidate: ActionCandidate) -> str:
         return self.by_risk.get(candidate.risk_class, self.default_verifier)
@@ -47,16 +48,21 @@ class VerifierFirewall:
             raise ValueError("policy-selected verifier is unavailable") from error
         decision = verifier(candidate)
         accepted = "1" if decision.accepted else "0"
+        fingerprint = action_fingerprint(candidate)
         attestation = sign_fields(
             self._attestation_key,
             verifier_id,
             candidate.id,
+            fingerprint,
+            self._policy.version,
             accepted,
             decision.evidence,
         )
         return VerificationResult(
             verifier_id=verifier_id,
             candidate_id=candidate.id,
+            action_fingerprint=fingerprint,
+            policy_version=self._policy.version,
             accepted=decision.accepted,
             evidence=decision.evidence,
             attestation=attestation,

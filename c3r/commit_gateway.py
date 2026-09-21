@@ -5,14 +5,17 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from .authority import attestation_matches
+from .authority import action_fingerprint, attestation_matches
 from .state_schema import ActionCandidate, RiskClass, VerificationResult
 
 
 @dataclass(frozen=True, slots=True)
 class ApprovalGrant:
     candidate_id: str
+    action_fingerprint: str
+    policy_version: str
     authority_id: str
+    nonce: str
     attestation: str
 
 
@@ -45,12 +48,14 @@ class TrustedCommitGateway:
         trusted_verifier_ids: frozenset[str],
         verification_key: bytes,
         approval_key: bytes,
+        policy_version: str,
     ) -> None:
         if not trusted_verifier_ids:
             raise ValueError("at least one trusted verifier is required")
         self._trusted_verifier_ids = trusted_verifier_ids
         self._verification_key = verification_key
         self._approval_key = approval_key
+        self._policy_version = policy_version
 
     def commit(
         self,
@@ -63,12 +68,19 @@ class TrustedCommitGateway:
             return CommitResult(False, "untrusted verifier")
         if verification.candidate_id != candidate.id:
             return CommitResult(False, "verification candidate mismatch")
+        fingerprint = action_fingerprint(candidate)
+        if verification.action_fingerprint != fingerprint:
+            return CommitResult(False, "verification action mismatch")
+        if verification.policy_version != self._policy_version:
+            return CommitResult(False, "verification policy mismatch")
         accepted = "1" if verification.accepted else "0"
         if not attestation_matches(
             verification.attestation,
             self._verification_key,
             verification.verifier_id,
             verification.candidate_id,
+            verification.action_fingerprint,
+            verification.policy_version,
             accepted,
             verification.evidence,
         ):
@@ -80,11 +92,18 @@ class TrustedCommitGateway:
                 return CommitResult(False, "approval required")
             if request.approval.candidate_id != candidate.id:
                 return CommitResult(False, "approval candidate mismatch")
+            if request.approval.action_fingerprint != fingerprint:
+                return CommitResult(False, "approval action mismatch")
+            if request.approval.policy_version != self._policy_version:
+                return CommitResult(False, "approval policy mismatch")
             if not attestation_matches(
                 request.approval.attestation,
                 self._approval_key,
                 request.approval.authority_id,
                 request.approval.candidate_id,
+                request.approval.action_fingerprint,
+                request.approval.policy_version,
+                request.approval.nonce,
             ):
                 return CommitResult(False, "invalid approval attestation")
 

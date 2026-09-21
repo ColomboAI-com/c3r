@@ -9,8 +9,8 @@ means no completion claim is made.
 | State schema gate and unsafe compression | reference | real compression, omission, injection, and rollback evaluations |
 | Candidate Compiler and hard masks | partial | hierarchy, schema validation, branch-and-bound, integrated widening |
 | Runtime CVoC | implemented | calibrated value/cost inputs and conservative fallback tests |
-| Verifier Firewall | implemented | disagreement, bypass, hidden-canary, and failed-check fixtures |
-| Trusted Commit Gateway | implemented | zero bypasses across consequential-action suite |
+| Verifier Firewall | reference | disagreement, bypass, hidden-canary, and failed-check fixtures |
+| Trusted Commit Gateway | reference | host-level complete mediation and zero bypasses across consequential suite |
 | Adaptive Cost Twin | reference | drift recovery across provider, queue, cache, and thermal shifts |
 | Laya System-One adapter | contract | pinned revision, license check, calibration, abstention |
 | C3R DecisionMix v1 | planned | provenance, licenses, immutable splits, manifests |

@@ -30,7 +30,8 @@ versioned state fabric -> state compiler -> candidate compiler + hard masks
                                           outcome, trace, cost twin
 ```
 
-The controller proposes work. It does not grant itself authority. A learned component cannot:
+The controller proposes work. It does not grant itself authority. A conforming host integration
+must completely mediate effects so a learned component cannot:
 
 - bypass permissions, approvals, data-boundary policy, or provider allowlists;
 - select or rewrite its authoritative verifier;
@@ -45,8 +46,8 @@ The controller proposes work. It does not grant itself authority. A learned comp
 - Policy-first candidate filtering with per-family caps and `no_safe_action`.
 - Progressive widening utility for statistically close candidates.
 - Conservative CVoC lower-bound selection and deterministic `STOP` fallback.
-- Verifier Firewall with policy-selected authoritative verifier identity.
-- Trusted Commit Gateway with complete mediation of external writes and approvals.
+- Verifier Firewall reference with policy-selected, action-bound attestations.
+- Trusted Commit Gateway reference for independently verified and approved effects.
 - Dual-timescale Adaptive Cost Twin reference estimator with staleness detection.
 - Fixed typed-question registry for bounded System-One decisions.
 - Revision-pinned, dependency-injected Laya adapter contract.

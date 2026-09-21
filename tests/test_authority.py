@@ -1,5 +1,6 @@
 import unittest
 
+from c3r.authority import action_fingerprint
 from c3r.commit_gateway import CommitRequest, TrustedCommitGateway
 from c3r.state_schema import (
     ActionCandidate,
@@ -51,6 +52,7 @@ class AuthorityBoundaryTests(unittest.TestCase):
             trusted_verifier_ids=frozenset({"policy"}),
             verification_key=key,
             approval_key=b"test-approval-key",
+            policy_version="policy-v1",
         ).commit(request, lambda action: effects.append(action.id))
 
         self.assertFalse(result.committed)
@@ -66,6 +68,8 @@ class AuthorityBoundaryTests(unittest.TestCase):
             verification=VerificationResult(
                 verifier_id="self-approved",
                 candidate_id=candidate.id,
+                action_fingerprint=action_fingerprint(candidate),
+                policy_version="policy-v1",
                 accepted=True,
                 evidence="claimed",
                 attestation="forged",
@@ -77,6 +81,7 @@ class AuthorityBoundaryTests(unittest.TestCase):
             trusted_verifier_ids=frozenset({"policy"}),
             verification_key=b"test-verification-key",
             approval_key=b"test-approval-key",
+            policy_version="policy-v1",
         ).commit(request, lambda action: effects.append(action.id))
 
         self.assertFalse(result.committed)
@@ -92,6 +97,8 @@ class AuthorityBoundaryTests(unittest.TestCase):
             verification=VerificationResult(
                 verifier_id="policy",
                 candidate_id=candidate.id,
+                action_fingerprint=action_fingerprint(candidate),
+                policy_version="policy-v1",
                 accepted=True,
                 evidence="claimed",
                 attestation="forged",
@@ -103,6 +110,7 @@ class AuthorityBoundaryTests(unittest.TestCase):
             trusted_verifier_ids=frozenset({"policy"}),
             verification_key=b"test-verification-key",
             approval_key=b"test-approval-key",
+            policy_version="policy-v1",
         ).commit(request, lambda action: effects.append(action.id))
 
         self.assertFalse(result.committed)
@@ -125,6 +133,7 @@ class AuthorityBoundaryTests(unittest.TestCase):
             trusted_verifier_ids=frozenset({"policy"}),
             verification_key=key,
             approval_key=b"test-approval-key",
+            policy_version="policy-v1",
         ).commit(
             CommitRequest(candidate=candidate, verification=verification),
             lambda action: effects.append(action.id),
@@ -132,6 +141,35 @@ class AuthorityBoundaryTests(unittest.TestCase):
 
         self.assertTrue(result.committed)
         self.assertEqual(effects, [candidate.id])
+
+    def test_gateway_rejects_attestation_reused_for_changed_action(self) -> None:
+        key = b"test-verification-key"
+        original = ActionCandidate(
+            "same-id", ActionFamily.TOOL, RiskClass.EXTERNAL_WRITE, 1.0
+        )
+        changed = ActionCandidate(
+            "same-id", ActionFamily.TOOL, RiskClass.READ_ONLY, 1.0
+        )
+        verification = VerifierFirewall(
+            {"policy": lambda _: VerifierDecision(accepted=True, evidence="allowed")},
+            VerifierPolicy(default_verifier="policy", version="policy-v1"),
+            attestation_key=key,
+        ).verify(original)
+        effects: list[str] = []
+
+        result = TrustedCommitGateway(
+            trusted_verifier_ids=frozenset({"policy"}),
+            verification_key=key,
+            approval_key=b"test-approval-key",
+            policy_version="policy-v1",
+        ).commit(
+            CommitRequest(candidate=changed, verification=verification),
+            lambda action: effects.append(action.id),
+        )
+
+        self.assertFalse(result.committed)
+        self.assertEqual(result.reason, "verification action mismatch")
+        self.assertEqual(effects, [])
 
 
 if __name__ == "__main__":
