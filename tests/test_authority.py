@@ -1,7 +1,12 @@
 import unittest
 
 from c3r.authority import action_fingerprint, sign_fields
-from c3r.commit_gateway import ApprovalGrant, CommitRequest, TrustedCommitGateway
+from c3r.commit_gateway import (
+    ApprovalGrant,
+    CommitRequest,
+    InMemoryApprovalNonceStore,
+    TrustedCommitGateway,
+)
 from c3r.state_schema import (
     ActionCandidate,
     ActionFamily,
@@ -53,6 +58,7 @@ class AuthorityBoundaryTests(unittest.TestCase):
             verification_key=key,
             approval_key=b"test-approval-key",
             policy_version="policy-v1",
+            approval_nonce_store=InMemoryApprovalNonceStore(),
         ).commit(request, lambda action: effects.append(action.id))
 
         self.assertFalse(result.committed)
@@ -82,6 +88,7 @@ class AuthorityBoundaryTests(unittest.TestCase):
             verification_key=b"test-verification-key",
             approval_key=b"test-approval-key",
             policy_version="policy-v1",
+            approval_nonce_store=InMemoryApprovalNonceStore(),
         ).commit(request, lambda action: effects.append(action.id))
 
         self.assertFalse(result.committed)
@@ -111,6 +118,7 @@ class AuthorityBoundaryTests(unittest.TestCase):
             verification_key=b"test-verification-key",
             approval_key=b"test-approval-key",
             policy_version="policy-v1",
+            approval_nonce_store=InMemoryApprovalNonceStore(),
         ).commit(request, lambda action: effects.append(action.id))
 
         self.assertFalse(result.committed)
@@ -134,6 +142,7 @@ class AuthorityBoundaryTests(unittest.TestCase):
             verification_key=key,
             approval_key=b"test-approval-key",
             policy_version="policy-v1",
+            approval_nonce_store=InMemoryApprovalNonceStore(),
         ).commit(
             CommitRequest(candidate=candidate, verification=verification),
             lambda action: effects.append(action.id),
@@ -162,6 +171,7 @@ class AuthorityBoundaryTests(unittest.TestCase):
             verification_key=key,
             approval_key=b"test-approval-key",
             policy_version="policy-v1",
+            approval_nonce_store=InMemoryApprovalNonceStore(),
         ).commit(
             CommitRequest(candidate=changed, verification=verification),
             lambda action: effects.append(action.id),
@@ -205,6 +215,7 @@ class AuthorityBoundaryTests(unittest.TestCase):
             verification_key=verification_key,
             approval_key=approval_key,
             policy_version="policy-v1",
+            approval_nonce_store=InMemoryApprovalNonceStore(),
             clock=lambda: 1_000,
         )
         request = CommitRequest(candidate, verification, approval)
@@ -215,7 +226,7 @@ class AuthorityBoundaryTests(unittest.TestCase):
 
         self.assertTrue(first.committed)
         self.assertFalse(second.committed)
-        self.assertEqual(second.reason, "approval replayed")
+        self.assertEqual(second.reason, "approval expired or replayed")
         self.assertEqual(effects, [candidate.id])
 
 

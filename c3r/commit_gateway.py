@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from threading import Lock
 import time
+from typing import Protocol
 
 from .authority import action_fingerprint, attestation_matches
 from .state_schema import ActionCandidate, RiskClass, VerificationResult
@@ -35,6 +36,27 @@ class CommitResult:
     reason: str
 
 
+class ApprovalNonceStore(Protocol):
+    """Atomically claims approval nonces across every gateway replica."""
+
+    def claim(self, nonce: str, *, expires_at_epoch_s: int, now_epoch_s: float) -> bool: ...
+
+
+class InMemoryApprovalNonceStore:
+    """Single-process test store; production must use durable shared storage."""
+
+    def __init__(self) -> None:
+        self._claimed: set[str] = set()
+        self._lock = Lock()
+
+    def claim(self, nonce: str, *, expires_at_epoch_s: int, now_epoch_s: float) -> bool:
+        with self._lock:
+            if now_epoch_s > expires_at_epoch_s or nonce in self._claimed:
+                return False
+            self._claimed.add(nonce)
+            return True
+
+
 class TrustedCommitGateway:
     _approval_classes = frozenset(
         {
@@ -52,6 +74,7 @@ class TrustedCommitGateway:
         verification_key: bytes,
         approval_key: bytes,
         policy_version: str,
+        approval_nonce_store: ApprovalNonceStore,
         clock: Callable[[], float] = time.time,
     ) -> None:
         if not trusted_verifier_ids:
@@ -60,9 +83,8 @@ class TrustedCommitGateway:
         self._verification_key = verification_key
         self._approval_key = approval_key
         self._policy_version = policy_version
+        self._approval_nonce_store = approval_nonce_store
         self._clock = clock
-        self._consumed_approval_nonces: set[str] = set()
-        self._approval_lock = Lock()
 
     def commit(
         self,
@@ -114,12 +136,12 @@ class TrustedCommitGateway:
                 str(request.approval.expires_at_epoch_s),
             ):
                 return CommitResult(False, "invalid approval attestation")
-            with self._approval_lock:
-                if request.approval.nonce in self._consumed_approval_nonces:
-                    return CommitResult(False, "approval replayed")
-                if self._clock() > request.approval.expires_at_epoch_s:
-                    return CommitResult(False, "approval expired")
-                self._consumed_approval_nonces.add(request.approval.nonce)
+            if not self._approval_nonce_store.claim(
+                request.approval.nonce,
+                expires_at_epoch_s=request.approval.expires_at_epoch_s,
+                now_epoch_s=self._clock(),
+            ):
+                return CommitResult(False, "approval expired or replayed")
 
         executor(candidate)
         return CommitResult(True, "committed")

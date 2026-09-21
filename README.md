@@ -58,6 +58,10 @@ The current Candidate Compiler is the safe first stage of the required hierarchy
 operation, argument, placement, verifier attachment, branch-and-bound, and integrated progressive
 widening remain roadmap work and are not claimed as implemented.
 
+The gateway requires an atomic `ApprovalNonceStore`. The included in-memory implementation is for
+single-process tests only; production hosts must inject durable shared storage so approval expiry
+and claim-before-execute remain effective across restarts and replicas.
+
 ## Deliberately not claimed yet
 
 The following directive milestones require data, compute, service credentials, or integrations
