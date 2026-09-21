@@ -1,7 +1,7 @@
 import unittest
 
-from c3r.authority import action_fingerprint
-from c3r.commit_gateway import CommitRequest, TrustedCommitGateway
+from c3r.authority import action_fingerprint, sign_fields
+from c3r.commit_gateway import ApprovalGrant, CommitRequest, TrustedCommitGateway
 from c3r.state_schema import (
     ActionCandidate,
     ActionFamily,
@@ -170,6 +170,53 @@ class AuthorityBoundaryTests(unittest.TestCase):
         self.assertFalse(result.committed)
         self.assertEqual(result.reason, "verification action mismatch")
         self.assertEqual(effects, [])
+
+    def test_gateway_consumes_approval_nonce_before_external_effect(self) -> None:
+        verification_key = b"test-verification-key"
+        approval_key = b"test-approval-key"
+        candidate = ActionCandidate(
+            "send-once", ActionFamily.TOOL, RiskClass.EXTERNAL_WRITE, 1.0
+        )
+        fingerprint = action_fingerprint(candidate)
+        verification = VerifierFirewall(
+            {"policy": lambda _: VerifierDecision(accepted=True, evidence="allowed")},
+            VerifierPolicy(default_verifier="policy", version="policy-v1"),
+            attestation_key=verification_key,
+        ).verify(candidate)
+        approval = ApprovalGrant(
+            candidate_id=candidate.id,
+            action_fingerprint=fingerprint,
+            policy_version="policy-v1",
+            authority_id="human-review",
+            nonce="single-use-nonce",
+            expires_at_epoch_s=2_000,
+            attestation=sign_fields(
+                approval_key,
+                "human-review",
+                candidate.id,
+                fingerprint,
+                "policy-v1",
+                "single-use-nonce",
+                "2000",
+            ),
+        )
+        gateway = TrustedCommitGateway(
+            trusted_verifier_ids=frozenset({"policy"}),
+            verification_key=verification_key,
+            approval_key=approval_key,
+            policy_version="policy-v1",
+            clock=lambda: 1_000,
+        )
+        request = CommitRequest(candidate, verification, approval)
+        effects: list[str] = []
+
+        first = gateway.commit(request, lambda action: effects.append(action.id))
+        second = gateway.commit(request, lambda action: effects.append(action.id))
+
+        self.assertTrue(first.committed)
+        self.assertFalse(second.committed)
+        self.assertEqual(second.reason, "approval replayed")
+        self.assertEqual(effects, [candidate.id])
 
 
 if __name__ == "__main__":

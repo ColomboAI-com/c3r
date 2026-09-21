@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from threading import Lock
+import time
 
 from .authority import action_fingerprint, attestation_matches
 from .state_schema import ActionCandidate, RiskClass, VerificationResult
@@ -16,6 +18,7 @@ class ApprovalGrant:
     policy_version: str
     authority_id: str
     nonce: str
+    expires_at_epoch_s: int
     attestation: str
 
 
@@ -49,6 +52,7 @@ class TrustedCommitGateway:
         verification_key: bytes,
         approval_key: bytes,
         policy_version: str,
+        clock: Callable[[], float] = time.time,
     ) -> None:
         if not trusted_verifier_ids:
             raise ValueError("at least one trusted verifier is required")
@@ -56,6 +60,9 @@ class TrustedCommitGateway:
         self._verification_key = verification_key
         self._approval_key = approval_key
         self._policy_version = policy_version
+        self._clock = clock
+        self._consumed_approval_nonces: set[str] = set()
+        self._approval_lock = Lock()
 
     def commit(
         self,
@@ -104,8 +111,15 @@ class TrustedCommitGateway:
                 request.approval.action_fingerprint,
                 request.approval.policy_version,
                 request.approval.nonce,
+                str(request.approval.expires_at_epoch_s),
             ):
                 return CommitResult(False, "invalid approval attestation")
+            with self._approval_lock:
+                if request.approval.nonce in self._consumed_approval_nonces:
+                    return CommitResult(False, "approval replayed")
+                if self._clock() > request.approval.expires_at_epoch_s:
+                    return CommitResult(False, "approval expired")
+                self._consumed_approval_nonces.add(request.approval.nonce)
 
         executor(candidate)
         return CommitResult(True, "committed")
