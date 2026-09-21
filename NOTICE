@@ -1,0 +1,15 @@
+C3R - Robust Calibrated Compute Control
+Copyright 2026 ColomboAI
+
+The planned ColomboAI/C3R-Decision-Laya-421M-v0.1 model is based on Laya by Convai
+Innovations and must preserve Laya's Apache-2.0 license and upstream notices.
+
+Based on Laya by Convai Innovations. Fine-tuned by ColomboAI for C3R compute-control
+decisions. C3R is a broader runtime architecture and is not a fork or rebranding of the
+Laya research contribution.
+
+Upstream model: https://huggingface.co/convaiinnovations/laya
+Upstream source: https://github.com/NandhaKishorM/laya
+
+No derived Laya weights are included in this repository at this time.
+

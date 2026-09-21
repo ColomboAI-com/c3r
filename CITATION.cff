@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use C3R, please cite the software and accompanying paper."
+title: "C3R: Robust Calibrated Compute Control for Machine-Native Intelligence"
+type: software
+authors:
+  - family-names: Kouadio
+    given-names: Wilfried
+repository-code: "https://github.com/ColomboAI-com/c3r"
+url: "https://colomboai.com"
+version: 0.1.0
+date-released: 2026-09-21
+license: Apache-2.0
+
