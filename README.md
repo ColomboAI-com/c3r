@@ -106,6 +106,14 @@ is `STOP`.
   calibration/training/evaluation gates; no derived weights are claimed.
 - [`docs/architecture.md`](docs/architecture.md) — trust boundaries and component contracts.
 - [`docs/roadmap.md`](docs/roadmap.md) — what remains before production qualification.
+- [`docs/directive-compliance.md`](docs/directive-compliance.md) — evidence-backed audit against
+  every Definition of Done item in Execution Directive v2.
+- [`docs/empirical-release-plan.md`](docs/empirical-release-plan.md) — gated path from synthetic
+  preview to trained, calibrated, independently reproducible release.
+- [`docs/launch-announcement.md`](docs/launch-announcement.md) — canonical launch copy plus
+  LinkedIn, X, and Hacker News variants with a publication checklist.
+- [`docs/prior-art.md`](docs/prior-art.md) — explicit attribution links and the canonical novelty
+  boundary required by the execution directive.
 
 ## Laya integration
 
