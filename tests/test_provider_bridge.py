@@ -50,7 +50,8 @@ class ProviderBridgeTests(unittest.TestCase):
         )
         result = ProviderDeliberator(adapter).deliberate(state("local"))
 
-        self.assertEqual(result.plan, ("inspect",))
+        self.assertEqual(result.deliberation.plan, ("inspect",))
+        self.assertEqual(result.observed_cost["latency_ms"], 12.0)
         self.assertIn("Plan a read-only check", captured[0]["messages"][1]["content"])
 
     def test_remote_provider_is_not_called_for_local_data(self) -> None:

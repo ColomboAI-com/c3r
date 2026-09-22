@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+from math import isfinite
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from typing import Protocol
 
+from .adapters.providers import ProviderExecutionResult
 from .candidate_compiler import CandidateCompiler
 from .commit_gateway import ApprovalGrant, CommitRequest, TrustedCommitGateway
 from .cvoc import RobustCvocController
@@ -125,13 +127,15 @@ class StandaloneController:
             authority_result: str = "not_attempted",
             fast: FastPathDecision | None = None,
             deliberation: object | None = None,
+            system_cost: Mapping[str, float] | None = None,
+            provider_id: str | None = None,
         ) -> RuntimeOutcome:
             probabilities = {} if fast is None else fast.probabilities
             trace = DecisionTrace(
                 run_id=request.run_id,
                 state_hash=state_hash,
                 access_level=request.access_level,
-                model_provider=route,
+                model_provider=provider_id or route,
                 candidate_ids=candidate_ids,
                 probabilities=probabilities,
                 utility_quantiles=(
@@ -139,7 +143,7 @@ class StandaloneController:
                 ),
                 selected_action_id=None if selected is None else selected.id,
                 authority_result=authority_result,
-                system_cost={},
+                system_cost={} if system_cost is None else system_cost,
                 task_outcome={"status": reason},
                 artifact_refs=(),
             )
@@ -165,7 +169,10 @@ class StandaloneController:
         if remaining_budget < 0:
             return finish("deterministic", "INVALID_BUDGET")
         compiled = self._candidates.compile_hierarchical(
-            request.definitions,
+            (
+                definition for definition in request.definitions
+                if definition.family in state.available_action_families
+            ),
             request.policy,
             remaining_budget=remaining_budget,
             allowed_verifiers=self._verifier.available_verifier_ids,
@@ -264,6 +271,18 @@ class StandaloneController:
         except (OSError, RuntimeError, TypeError, ValueError):
             return finish(
                 "deterministic", "DELIBERATIVE_FAILURE", candidate_ids=candidate_ids, fast=fast
+            )
+        if isinstance(deliberation, ProviderExecutionResult):
+            cost = deliberation.observed_cost
+            if any(not isfinite(value) or value < 0 for value in cost.values()):
+                return finish(
+                    "deterministic", "DELIBERATIVE_INVALID_COST", candidate_ids=candidate_ids,
+                    fast=fast,
+                )
+            return finish(
+                "deliberative", reason, candidate_ids=candidate_ids, fast=fast,
+                deliberation=deliberation.deliberation, system_cost=cost,
+                provider_id=deliberation.provider_id,
             )
         return finish(
             "deliberative",

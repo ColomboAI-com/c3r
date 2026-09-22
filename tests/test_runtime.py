@@ -1,8 +1,11 @@
 import unittest
+from dataclasses import replace
 
+from c3r.adapters.providers import ProviderExecutionResult
 from c3r.candidate_compiler import CandidateCompiler
 from c3r.commit_gateway import InMemoryApprovalNonceStore, TrustedCommitGateway
 from c3r.cvoc import RobustCvocController
+from c3r.deliberative.envelope import DeliberativeResult
 from c3r.feature_flags import FeatureFlags
 from c3r.runtime import RuntimeRequest, StandaloneController
 from c3r.state_compiler import StateCompiler
@@ -140,6 +143,16 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(outcome.reason, "VERIFICATION_REJECTED")
         self.assertEqual(effects, [])
 
+    def test_unavailable_action_family_is_never_compiled(self) -> None:
+        runtime, _ = controller()
+        req = request()
+        req = replace(req, raw_state=replace(req.raw_state, available_action_families=()))
+
+        outcome = runtime.run(req)
+
+        self.assertEqual(outcome.reason, "NO_SAFE_ACTION")
+        self.assertIsNone(outcome.selected_action_id)
+
     def test_external_write_requires_independent_approval(self) -> None:
         effects = []
         runtime, _ = controller(executor=effects.append)
@@ -177,6 +190,39 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(outcome.reason, "SYSTEM_ONE_ABSTAINED")
         self.assertIsNone(outcome.selected_action_id)
         self.assertEqual(effects, [])
+
+    def test_provider_usage_is_recorded_without_granting_authority(self) -> None:
+        class Deliberator:
+            def deliberate(self, _state):
+                return ProviderExecutionResult(
+                    DeliberativeResult(("inspect",), (), (), (), ()),
+                    {"latency_ms": 12.0, "input_tokens": 10.0},
+                    "deepseek-local", "deepseek-v4.1-flash",
+                )
+
+        runtime, ledger = controller(deliberative=True, deliberator=Deliberator())
+        req = request()
+        req = RuntimeRequest(
+            req.raw_state, req.definitions, req.policy, {}, req.run_id,
+        )
+        # A deliberative candidate, rather than a tool, is selected by CVoC.
+        definition = ActionDefinition(
+            "reason", ActionFamily.DELIBERATE, "model", "plan", RiskClass.READ_ONLY,
+            ((),), ("local",), ("policy",), 1.0, 0.1,
+        )
+        req = RuntimeRequest(
+            replace(req.raw_state, available_action_families=(ActionFamily.DELIBERATE,)),
+            (definition,),
+            AuthorityPolicy(frozenset({ActionFamily.DELIBERATE}), frozenset({RiskClass.READ_ONLY})),
+            {"reason:0:local:policy": ValueEstimate(0.9, 0.1, 0.0, 0.1)}, req.run_id,
+        )
+        outcome = runtime.run(req)
+
+        self.assertEqual(outcome.route, "deliberative")
+        self.assertIsNone(outcome.selected_action_id)
+        self.assertEqual(ledger.records[0].record_hash, outcome.ledger_record.record_hash)
+        self.assertIn('"model_provider":"deepseek-local"', ledger.records[0].canonical_json)
+        self.assertIn('"latency_ms":12.0', ledger.records[0].canonical_json)
 
 
 if __name__ == "__main__":

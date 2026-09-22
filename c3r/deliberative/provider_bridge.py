@@ -5,8 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from urllib.parse import urlparse
 
-from ..adapters.providers import DeliberationRequest, ProviderAdapter
-from ..deliberative.envelope import DeliberativeResult
+from ..adapters.providers import DeliberationRequest, ProviderAdapter, ProviderExecutionResult
 from ..state_schema import CompiledState
 
 
@@ -16,10 +15,9 @@ class ProviderDeliberator:
     def __init__(self, adapter: ProviderAdapter) -> None:
         self._adapter = adapter
 
-    def deliberate(self, state: CompiledState) -> DeliberativeResult:
+    def deliberate(self, state: CompiledState) -> ProviderExecutionResult:
         hostname = urlparse(self._adapter.config.base_url).hostname
         local = hostname in {"localhost", "127.0.0.1", "::1"}
         if not local and state.data_boundary not in {"approved_remote", "public"}:
             raise ValueError("state is not approved for a remote provider")
-        result = self._adapter.deliberate(DeliberationRequest(asdict(state)))
-        return result.deliberation
+        return self._adapter.deliberate(DeliberationRequest(asdict(state)))
