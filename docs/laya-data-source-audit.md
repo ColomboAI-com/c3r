@@ -30,4 +30,12 @@ set of C3R decisions with independent real-world outcomes in these assets.
 3. **Do not relabel** either source as governed empirical DecisionMix or held-out C3R calibration. To make that claim, collect actual C3R runs on a documented task population with independent verifier/outcome labels, source ownership and data-use rights, consent/privacy review where applicable, redaction, retention/deletion policy, immutable splits, contamination checks, and human/independent provenance review. Public release may need redacted or aggregate records if raw traces include protected data.
 4. **Do not infer** permission to ingest Laya users' prompts, DeepSeek API users' prompts, or Colibri/customer logs from a public repository or model license. No such records were identified in the reviewed assets. C3R-controlled internal tasks can create a new, accurately labeled *controlled evaluation trace* corpus, but that is not equivalent to production field evidence or live Colibri shadow qualification.
 
+The synthetic train split is now pinned to dataset revision
+`c76749ec58bd8c3d2ea706b31c333a9059c38f90`. Its 598,824-byte `all/train`
+Parquet file matches SHA-256
+`46a58d63edfd86e23229c78afe8b72307bb4ca9fb0e8df180cabb3c67ec9dcd5`.
+The [aggregate audit](https://github.com/ColomboAI-com/c3r-evals/blob/feat/redacted-serving-probe-pr/sources/laya-typed-decisions-train.audit.json)
+reports 1,200 distinct synthetic states (300 per workflow), 1,800 choice,
+1,800 noul, and 2,400 score questions. Raw rows are not published by C3R.
+
 Release wording until those gates pass: “Laya-derived integration and synthetic/controlled evaluation preview,” not “empirical DecisionMix,” “calibrated C3R-Laya,” or “production-qualified.”
