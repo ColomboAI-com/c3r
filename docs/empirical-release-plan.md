@@ -16,8 +16,11 @@ train, validation, or calibration. Self-hosted DeepSeek can generate proposals f
 prompts, but its own output is not an independent verifier or task-outcome label.
 
 The user approved **C3R-controlled internal tasks only** as the present
-training/evaluation source. Do not ingest customer, product, Laya-user, DeepSeek-user,
-or Colibri operational logs under this authorization. The first controlled source is
+training/evaluation source, including redacted telemetry from those tasks in private
+shadow/canary qualification. This does not approve customer, product, Laya-user,
+DeepSeek-user, or Colibri operational logs. Collection remains disabled until a
+recorded source owner, permitted fields, redaction review, retention/deletion rule,
+access policy, and publication scope are in place. The first controlled source is
 the [five-case local paired replay](controlled-replay.md), which is a pipeline smoke
 test, not an empirical DecisionMix corpus or training/calibration set. Before
 expanding the controlled corpus, record the source owner, task
