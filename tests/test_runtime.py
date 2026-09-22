@@ -224,6 +224,61 @@ class RuntimeTests(unittest.TestCase):
         self.assertIn('"model_provider":"deepseek-local"', ledger.records[0].canonical_json)
         self.assertIn('"latency_ms":12.0', ledger.records[0].canonical_json)
 
+    def test_model_requested_unsafe_action_never_reaches_executor(self) -> None:
+        class Deliberator:
+            def deliberate(self, _state):
+                return ProviderExecutionResult(
+                    DeliberativeResult((), (), (), (), ("delete all records",)),
+                    {"latency_ms": 1.0}, "untrusted-model", "fixture",
+                )
+
+        effects = []
+        runtime, _ = controller(deliberative=True, deliberator=Deliberator(), executor=effects.append)
+        base = request()
+        definition = ActionDefinition(
+            "reason", ActionFamily.DELIBERATE, "model", "plan", RiskClass.READ_ONLY,
+            ((),), ("local",), ("policy",), 1.0, 0.1,
+        )
+        req = RuntimeRequest(
+            replace(base.raw_state, available_action_families=(ActionFamily.DELIBERATE,)),
+            (definition,),
+            AuthorityPolicy(frozenset({ActionFamily.DELIBERATE}), frozenset({RiskClass.READ_ONLY})),
+            {"reason:0:local:policy": ValueEstimate(0.9, 0.1, 0.0, 0.1)},
+            base.run_id,
+        )
+
+        outcome = runtime.run(req)
+
+        self.assertEqual(outcome.route, "deliberative")
+        self.assertEqual(effects, [])
+        self.assertEqual(outcome.deliberation.requested_actions, ("delete all records",))
+
+    def test_provider_outage_falls_back_without_effect(self) -> None:
+        class Deliberator:
+            def deliberate(self, _state):
+                raise OSError("provider unavailable")
+
+        effects = []
+        runtime, _ = controller(deliberative=True, deliberator=Deliberator(), executor=effects.append)
+        base = request()
+        definition = ActionDefinition(
+            "reason", ActionFamily.DELIBERATE, "model", "plan", RiskClass.READ_ONLY,
+            ((),), ("local",), ("policy",), 1.0, 0.1,
+        )
+        req = RuntimeRequest(
+            replace(base.raw_state, available_action_families=(ActionFamily.DELIBERATE,)),
+            (definition,),
+            AuthorityPolicy(frozenset({ActionFamily.DELIBERATE}), frozenset({RiskClass.READ_ONLY})),
+            {"reason:0:local:policy": ValueEstimate(0.9, 0.1, 0.0, 0.1)},
+            base.run_id,
+        )
+
+        outcome = runtime.run(req)
+
+        self.assertEqual(outcome.reason, "DELIBERATIVE_FAILURE")
+        self.assertEqual(outcome.route, "deterministic")
+        self.assertEqual(effects, [])
+
 
 if __name__ == "__main__":
     unittest.main()
