@@ -1,0 +1,16 @@
+{
+  "arms": [
+    "baseline-disabled",
+    "c3r-reference-controller"
+  ],
+  "collected_at": "2026-09-22T20:13:48.558017+00:00",
+  "evidence_kind": "controlled",
+  "external_provider_cost_usd": 0.0,
+  "generator_sha256": "d92316c01434afe21349867cdf5161e0bc084654ec80c49e496c7a787e1e7a3b",
+  "limitations": "No Laya, DeepSeek, live tools, customer traffic, Colibri, or task-success ground truth",
+  "observations_sha256": "cd2bd92ef228f7e94082e0aa3a777537151f04a4d8d56db82f5680cd2643536c",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "python_version": "3.11.15",
+  "rubric_sha256": "2cec43dee0cc3737708c618064253e59b7b9182906b8d19806d45afd887d350b",
+  "task_population": "five C3R-authored authority/selection fixtures"
+}
