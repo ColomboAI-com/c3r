@@ -63,7 +63,7 @@ failed verification into success, or directly commit an external effect.
 | Laya fast path | exact upstream revision and license verification, typed probabilities, slice calibration, confidence/margin abstention |
 | DecisionMix v1 | validated records, immutable deterministic splits, source/license provenance, SHA-256 manifest, 144-record synthetic preview |
 | Authority boundary | action-bound verifier attestations, expiring single-use approvals, atomic nonce claims |
-| Runtime control | conservative CVoC selection, deterministic `STOP`, cost twin, deliberative contracts, trace schema and in-memory hash chain |
+| Runtime control | conservative CVoC selection, deterministic `STOP`, cost twin, deliberative contracts, trace schema and optional transactional SQLite hash chain |
 | Operational controls | fail-closed feature flags, tested frontier/open-weight HTTP contracts, Colibri shadow recommendations, canonical trace hash chain |
 | Standalone controller boundary | tested state → candidates → optional Laya → CVoC → independent verifier → recommendation/commit fallback → redacted trace composition; data-boundary-aware provider bridge and authenticated rate-limited loopback HTTP boundary (not publicly deployed) |
 

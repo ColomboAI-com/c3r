@@ -29,12 +29,16 @@ from .state_schema import (
 from .system_one.fast_path import FastPathDecision, LayaFastPath
 from .system_one.question_registry import TypedQuestion
 from .telemetry.trace import DecisionTrace
-from .telemetry.trace_ledger import LedgerRecord, TraceLedger
+from .telemetry.trace_ledger import LedgerRecord
 from .verifier_firewall import VerifierFirewall
 
 
 class Deliberator(Protocol):
     def deliberate(self, state: CompiledState) -> object: ...
+
+
+class TraceSink(Protocol):
+    def append(self, trace: DecisionTrace) -> LedgerRecord: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,7 +80,7 @@ class StandaloneController:
         cvoc: RobustCvocController,
         verifier: VerifierFirewall,
         gateway: TrustedCommitGateway,
-        ledger: TraceLedger,
+        ledger: TraceSink,
         fast_path: LayaFastPath | None = None,
         deliberator: Deliberator | None = None,
         executor: Callable[[ActionCandidate], None] | None = None,

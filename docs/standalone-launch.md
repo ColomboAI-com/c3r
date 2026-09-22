@@ -6,7 +6,7 @@ distinguishes tested code, private operational evidence, and public release evid
 
 | Gate | Current evidence | Exit condition |
 | --- | --- | --- |
-| Hosted decision path | `StandaloneController` composes state compilation, hierarchical candidates, optional calibrated Laya, conservative CVoC, independent verification, commit control, fallback, and redacted hash-chain traces. The loopback HTTP boundary has bearer authentication, a global rate limit, aggregate metrics, a body limit, and recommendation-only enforcement. Local integration tests pass. | Host-owned request factory and measured estimates, durable/anchored trace storage, TLS gateway, approved hostname, secret rotation, deployment and rollback rehearsal, monitoring/alerts, and live end-to-end traces. No public endpoint exists yet. |
+| Hosted decision path | `StandaloneController` composes state compilation, hierarchical candidates, optional calibrated Laya, conservative CVoC, independent verification, commit control, fallback, and redacted hash-chain traces. The loopback HTTP boundary has bearer authentication, a global rate limit, aggregate metrics, a body limit, and recommendation-only enforcement. A transactional SQLite trace sink survives restart and verifies its hash chain. Local integration tests pass. | Host-owned request factory and measured estimates, durable storage placement, independent ledger-head anchoring, TLS gateway, approved hostname, secret rotation, deployment and rollback rehearsal, monitoring/alerts, and live end-to-end traces. No public endpoint exists yet. |
 | DeepSeek | Official DeepSeek-V4.1-Flash shards are verified on the GCP GPU host and in a private GCS backup; localhost inference passed a smoke test. A provider bridge passes compiled state to a local OpenAI-compatible adapter and rejects remote transfer of local-only data in tests. | Secure service-to-service route and paired live C3R decision traces. The localhost model is not a public API. |
 | Empirical DecisionMix | Published preview has 144 synthetic records, deterministic splits, and hashes. | Approved trace source, consent/license/data-boundary review, deduplication, immutable split, provenance audit, and empirical dataset publication. Never relabel synthetic data empirical. |
 | C3R Laya | Pinned upstream integration and calibration-aware abstention are tested. The Hugging Face C3R model page is an integration preview without trained weights. | Train a C3R-derived checkpoint on governed training data, fit calibration on held-out data, preserve sealed test set, and publish weights, raw predictions, manifests, hashes, and reproducible metrics. |
@@ -15,8 +15,9 @@ distinguishes tested code, private operational evidence, and public release evid
 | Public release | v0.1 alpha repository, papers, collection, model/dataset previews. | Update all cards and launch copy only after the corresponding evidence passes; perform security and dependency review; publish an evidence-matched standalone release. |
 
 The current code path is a **tested reference boundary**, not a production service.
-The in-memory trace ledger is not durable, the estimates are not yet empirically
-calibrated, and the HTTP server requires a separate TLS/authentication gateway. Keep
+The SQLite ledger is optional and does not by itself provide independent audit anchoring;
+the estimates are not yet empirically calibrated, and the HTTP server requires a
+separate TLS/authentication gateway. Keep
 effect execution disabled in this service until host-level complete mediation and
 canary evidence are independently reviewed.
 

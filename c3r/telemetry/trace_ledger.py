@@ -25,6 +25,16 @@ def _record_hash(previous_hash: str, canonical_json: str) -> str:
     ).hexdigest()
 
 
+def canonical_trace_json(trace: DecisionTrace) -> str:
+    return json.dumps(
+        asdict(trace),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    )
+
+
 class TraceLedger:
     def __init__(self, records: tuple[LedgerRecord, ...] = ()) -> None:
         if records and not self.verify(records):
@@ -38,13 +48,7 @@ class TraceLedger:
             return tuple(self._records)
 
     def append(self, trace: DecisionTrace) -> LedgerRecord:
-        canonical = json.dumps(
-            asdict(trace),
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-            allow_nan=False,
-        )
+        canonical = canonical_trace_json(trace)
         with self._lock:
             previous = self._records[-1].record_hash if self._records else _GENESIS_HASH
             record = LedgerRecord(previous, _record_hash(previous, canonical), canonical)
