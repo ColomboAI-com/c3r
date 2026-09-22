@@ -106,9 +106,30 @@ class ActionCandidate:
 
 
 @dataclass(frozen=True, slots=True)
+class ActionDefinition:
+    id: str
+    family: ActionFamily
+    subgroup: str
+    operation: str
+    risk_class: RiskClass
+    argument_variants: tuple[tuple[tuple[str, str], ...], ...]
+    placements: tuple[str, ...]
+    verifier_ids: tuple[str, ...]
+    optimistic_utility: float
+    estimated_cost: float
+    provenance_complete: bool = True
+    data_boundary: str = "local"
+    required_argument_keys: frozenset[str] = frozenset()
+    allowed_argument_keys: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True, slots=True)
 class AuthorityPolicy:
     allowed_families: frozenset[ActionFamily]
     allowed_risks: frozenset[RiskClass]
+    allowed_data_boundaries: frozenset[str] = frozenset(
+        {"local", "approved_remote", "public", "unknown"}
+    )
 
     def permits(self, candidate: ActionCandidate) -> bool:
         return (
@@ -122,6 +143,8 @@ class CandidateCompilation:
     candidates: tuple[ActionCandidate, ...]
     masked_ids: tuple[str, ...]
     no_safe_action: bool
+    pruned_ids: tuple[str, ...] = ()
+    widened_families: tuple[ActionFamily, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

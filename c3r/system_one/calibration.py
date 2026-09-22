@@ -23,9 +23,14 @@ class TemperatureCalibrator:
         temperature = self.temperatures.get(key)
         if temperature is None or temperature <= 0:
             raise ValueError("calibration metadata unavailable for decision slice")
+        if not logits or not all(math.isfinite(value) for value in logits):
+            raise ValueError("model logits must be finite and non-empty")
         scaled = tuple(value / temperature for value in logits)
         peak = max(scaled)
         exps = tuple(math.exp(value - peak) for value in scaled)
         total = sum(exps)
         return tuple(value / total for value in exps)
 
+    def supports(self, key: CalibrationKey) -> bool:
+        temperature = self.temperatures.get(key)
+        return temperature is not None and temperature > 0

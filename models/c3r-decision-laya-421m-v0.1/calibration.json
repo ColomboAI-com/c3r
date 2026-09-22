@@ -1,0 +1,6 @@
+{
+  "release_gate": "blocked",
+  "reason": "No held-out empirical calibration set has been released.",
+  "schema_version": "c3r.calibration.v1",
+  "temperatures": {}
+}

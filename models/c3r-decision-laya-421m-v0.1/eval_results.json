@@ -1,0 +1,6 @@
+{
+  "empirical_results": [],
+  "release_gate": "blocked",
+  "reason": "No empirical evaluation has been run for a C3R-derived checkpoint.",
+  "synthetic_results_are_benchmarks": false
+}

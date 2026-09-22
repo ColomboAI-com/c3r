@@ -1,0 +1,20 @@
+{
+  "file_sha256": {
+    "test.jsonl": "b9d06410764bd80039d5511dbf1e034e701cf33a86ecae6d68c125f9e656547e",
+    "train.jsonl": "25c3d6029cbb6f3fd6b0edf3846d4a8759b46c8e37842387cf6bdabec7ce4476",
+    "validation.jsonl": "2be82a59c413f175b0c2507efd9c40021bc8ecbc3844dc6a74b6cceb36b57741"
+  },
+  "licenses": [
+    "Apache-2.0"
+  ],
+  "schema_version": "c3r.decisionmix.v1",
+  "source_ids": [
+    "c3r-synthetic-preview-generator"
+  ],
+  "split_counts": {
+    "test": 18,
+    "train": 114,
+    "validation": 12
+  },
+  "split_seed": "c3r-decisionmix-v1-preview-2026-09-21"
+}

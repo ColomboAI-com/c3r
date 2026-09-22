@@ -1,87 +1,78 @@
-# C3R
+<p align="center">
+  <img src="assets/c3r-hero.png" alt="C3R routes fast and deliberative computation through verification into a trusted commit gate" width="100%">
+</p>
 
-**Robust Calibrated Compute Control for Machine-Native Intelligence**
+<h1 align="center">C3R</h1>
+<p align="center"><strong>Robust Calibrated Compute Control for Machine-Native Intelligence</strong></p>
+<p align="center">
+  <a href="https://github.com/ColomboAI-com/c3r/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ColomboAI-com/c3r/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
+  <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776AB">
+  <img alt="Release alpha" src="https://img.shields.io/badge/release-v0.1%20alpha-7c3aed">
+</p>
 
-C3R is an open-core control plane for deciding which computation is worth performing next.
-It treats typed decisions, tools, retrieval, local and frontier models, verification, runtime
-placement, and stopping as candidates under one conservative value-of-computation policy.
+C3R is an open-core control plane that decides **which computation is worth performing next**.
+It evaluates tools, retrieval, local and frontier models, verification, placement, and stopping as
+typed candidates under one conservative value-of-computation policy.
 
-This repository is the public reference implementation described in the C3R System-One
-Integration paper and execution directive. It is an early implementation, not yet the trained
-or production-qualified release described by the complete roadmap.
+The v0.1 vertical slice now includes bounded hierarchical candidate compilation, a revision-verified Laya
+fast path with calibration-gated abstention, and a reproducible DecisionMix v1 schema preview.
+It is a research alpha: the controller is runnable and tested; fine-tuned weights and empirical
+production calibration remain release gates, not implied claims.
 
-## Architectural boundary
+## Why C3R
 
-```text
-application / agent
-        |
-versioned state fabric -> state compiler -> candidate compiler + hard masks
-                                           |                     |
-                                      System-One             deliberative
-                                       fast path               envelope
-                                           +----------+----------+
-                                                      |
-                                                robust CVoC
-                                                      |
-                                             verifier firewall
-                                                      |
-                                          trusted commit gateway
-                                                      |
-                                          outcome, trace, cost twin
+Most agent stacks decide *what to say*. C3R decides *what computation should happen next*—and
+keeps that recommendation separate from authority to act.
+
+```mermaid
+flowchart LR
+    S[Versioned state] --> C[Hierarchical candidate compiler]
+    C --> L[Laya fast path]
+    C --> D[Deliberative envelope]
+    L --> V[Robust CVoC]
+    D --> V
+    V --> F[Verifier Firewall]
+    F --> G[Trusted Commit Gateway]
+    G --> O[Outcome + trace + cost twin]
 ```
 
-The controller proposes work. It does not grant itself authority. A conforming host integration
-must completely mediate effects so a learned component cannot:
+Hard masks run before candidate expansion. Missing calibration or an uncertain typed prediction
+abstains. Learned components cannot grant permissions, select their authoritative verifier, turn
+failed verification into success, or directly commit an external effect.
 
-- bypass permissions, approvals, data-boundary policy, or provider allowlists;
-- select or rewrite its authoritative verifier;
-- turn a failed verification into success;
-- directly commit an external side effect;
-- change target-model semantics on a declared lossless path.
+## What ships in this slice
 
-## Implemented in v0.1
+| Surface | Included now |
+| --- | --- |
+| Candidate Compiler | family → subgroup → operation → arguments → placement → verifier; hard masks, budget pruning, caps, progressive widening |
+| Laya fast path | exact upstream revision and license verification, typed probabilities, slice calibration, confidence/margin abstention |
+| DecisionMix v1 | validated records, immutable deterministic splits, source/license provenance, SHA-256 manifest, 144-record synthetic preview |
+| Authority boundary | action-bound verifier attestations, expiring single-use approvals, atomic nonce claims |
+| Runtime control | conservative CVoC selection, deterministic `STOP`, cost twin, deliberative contracts, evidence-grade traces |
 
-- Versioned, bounded state-schema gate and an explicit `STATE_UNSAFE_TO_COMPRESS` outcome.
-- Provenance requirement for facts admitted to the bounded decision state.
-- Policy-first candidate filtering with per-family caps and `no_safe_action`.
-- Progressive widening utility for statistically close candidates.
-- Conservative CVoC lower-bound selection and deterministic `STOP` fallback.
-- Verifier Firewall reference with policy-selected, action-bound attestations.
-- Trusted Commit Gateway reference for independently verified and approved effects.
-- Dual-timescale Adaptive Cost Twin reference estimator with staleness detection.
-- Fixed typed-question registry for bounded System-One decisions.
-- Revision-pinned, dependency-injected Laya adapter contract.
-- Calibration and abstention primitives.
-- Deliberative Envelope, provider/runtime adapter, and evidence-grade trace contracts.
-
-The current Candidate Compiler is the safe first stage of the required hierarchy. Subgroup,
-operation, argument, placement, verifier attachment, branch-and-bound, and integrated progressive
-widening remain roadmap work and are not claimed as implemented.
-
-The gateway requires an atomic `ApprovalNonceStore`. The included in-memory implementation is for
-single-process tests only; production hosts must inject durable shared storage so approval expiry
-and claim-before-execute remain effective across restarts and replicas.
-
-## Deliberately not claimed yet
-
-The following directive milestones require data, compute, service credentials, or integrations
-that are not present in this initial repository commit:
-
-- a trained `ColomboAI/C3R-Decision-Laya-421M-v0.1` checkpoint;
-- a published `ColomboAI/C3R-DecisionMix-v1` dataset;
-- measured calibration, latency, cost, or task-success results;
-- production OpenAI, Anthropic, Gemini, Qwen, DeepSeek, vLLM, SGLang, or Colibri adapters;
-- MC-1 API, console, billing, and fleet-wide cost-twin integration;
-- any apples-to-apples Jev comparison.
-
-Those remain release gates. See [the roadmap](docs/roadmap.md).
+This compiler is the reviewed vertical slice, not the directive's full Candidate Compiler
+Definition of Done. Rich typed value constraints, per-argument provenance, dominated-branch
+pruning, and mandatory production placement policy remain explicit roadmap gates.
 
 ## Quick start
 
-The reference core has no runtime dependencies outside Python 3.11+.
+Core tests require only Python 3.11+:
 
 ```bash
 python -m unittest discover -s tests -v
+```
+
+Install the optional pinned Laya integration:
+
+```bash
+pip install -e ".[laya]"
+```
+
+Build the identical DecisionMix schema preview and verify its hashes:
+
+```bash
+python scripts/build_decisionmix_preview.py
 ```
 
 Minimal conservative selection:
@@ -98,35 +89,48 @@ candidate = ActionCandidate(
 )
 decision = RobustCvocController().select(
     (candidate,),
-    {
-        "retrieve": ValueEstimate(
-            expected_gain=0.8,
-            total_cost=0.2,
-            risk_penalty=0.0,
-            uncertainty=0.1,
-        )
-    },
+    {"retrieve": ValueEstimate(0.8, 0.2, 0.0, 0.1)},
 )
 ```
 
 If the conservative lower bound is not positive, `decision.selected` is `None` and the fallback
 is `STOP`.
 
-## System-One and deliberative paths
+## Launch artifacts
 
-The initial Laya integration is a contract, not a hidden download. A production application must
-provide a backend, pin an exact Hugging Face revision, verify the upstream license, and supply
-slice-specific calibration metadata. `laya-typed-decisions` is permitted only as a comparison
-baseline, not as the primary production base.
+- [`data/decisionmix-v1-preview`](data/decisionmix-v1-preview) — Hugging Face-ready synthetic
+  dataset card, immutable splits, and content hashes.
+- [`models/c3r-decision-laya-421m-v0.1`](models/c3r-decision-laya-421m-v0.1) — model-card scaffold,
+  exact base revision, and machine-readable calibration/training/evaluation gates.
+- [`docs/architecture.md`](docs/architecture.md) — trust boundaries and component contracts.
+- [`docs/roadmap.md`](docs/roadmap.md) — what remains before production qualification.
 
-System-One receives bounded typed questions and returns probabilities. It never returns prose and
-never decides permissions, price, or commitment. Unsafe compilation, high abstention, new schemas,
-ambiguous intent, creative work, long-horizon planning, or high consequence route to a structured
-Deliberative Envelope.
+## Laya integration
+
+The adapter pins `convaiinnovations/laya` at
+`1c5edc17a7acd8701df6fc341c0d179f1c62c982`. Before loading, the backend resolves the Hub
+metadata, verifies that exact SHA and the Apache-2.0 license, downloads that revision, and passes
+the local snapshot to `laya==0.3.5`.
+
+The fast path answers fixed typed questions only. Every decision slice is keyed by question type,
+action family, option-count bucket, language, and consequence class. A missing temperature,
+insufficient top probability, or insufficient top-two margin returns an abstention signal that the
+host orchestration must route to its deliberative envelope.
+
+## DecisionMix v1
+
+The included preview is intentionally synthetic. It validates the entire publication contract
+without presenting generated fixtures as real training evidence. The empirical corpus will ship
+only when provenance, licensing, held-out integrity, and calibration support are independently
+auditable.
+
+Required empirical metrics include accuracy, Brier score, ECE, maximum calibration error, NLL,
+selective risk versus coverage, abstention, escalation, p50/p95 latency, throughput, calls avoided,
+and cost per completed task.
 
 ## Feature flags
 
-Production integrations must preserve these independently controllable flags:
+Production hosts must preserve independent control of:
 
 ```text
 C3R_ENABLED
@@ -138,33 +142,21 @@ C3R_MOE_CONTROL
 C3R_ONLINE_LEARNING=false
 ```
 
-The learned fast path must be globally disableable without breaking the host system's normal
-operation.
+Disabling the learned fast path must leave the host's normal deterministic fallback operational.
 
-## Evaluation discipline
+## Release truth
 
-Scenario values are not empirical results. Release claims require raw traces, exact revisions,
-manifests, calibration slices, paired baselines, failed-run disclosure, and independent
-reproduction. Required metrics include accuracy, Brier score, ECE, maximum calibration error,
-negative log likelihood, selective risk versus coverage, abstention, escalation, p50/p95 latency,
-throughput, model calls avoided, and cost per completed task.
+Not yet claimed: trained `C3R-Decision-Laya-421M-v0.1` weights, empirical DecisionMix training
+data, production provider adapters, MC-1 integration, Colibri control, or measured production
+calibration/latency/cost results. They remain documented gates in the roadmap.
 
-## Upstream attribution
+The upstream base is [Laya by Convai Innovations](https://huggingface.co/convaiinnovations/laya),
+licensed Apache-2.0. C3R is a broader runtime architecture, not a fork or rebranding of Laya.
+See [`NOTICE`](NOTICE) for the attribution boundary.
 
-The planned derived controller is based on [Laya by Convai Innovations](https://huggingface.co/convaiinnovations/laya),
-an Apache-2.0 open System-One decision model. C3R is a broader runtime architecture and is not a
-fork or rebranding of Laya. See [NOTICE](NOTICE) for the canonical attribution boundary.
+## Security and license
 
-C3R does not claim to invent machine-native probabilistic decisions, RLCD, model routing,
-speculative decoding, or expert prefetching. It treats these mechanisms as computational
-primitives inside a unified risk-bounded value-of-computation controller.
+Do not report vulnerabilities in a public issue; follow [`SECURITY.md`](SECURITY.md). Production
+effects must be completely mediated by an independently configured commit gateway.
 
-## Security
-
-Do not report vulnerabilities in a public issue. Follow [SECURITY.md](SECURITY.md). The authority
-boundary is security-critical: production deployments must ensure every consequential effect is
-completely mediated by an independently configured commit gateway.
-
-## License
-
-Licensed under Apache License 2.0. See [LICENSE](LICENSE).
+Apache License 2.0. See [`LICENSE`](LICENSE). If you use C3R, cite [`CITATION.cff`](CITATION.cff).

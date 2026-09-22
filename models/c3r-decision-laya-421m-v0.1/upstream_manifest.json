@@ -1,0 +1,8 @@
+{
+  "license": "apache-2.0",
+  "model_id": "convaiinnovations/laya",
+  "parameter_count_reported": 421000000,
+  "revision": "1c5edc17a7acd8701df6fc341c0d179f1c62c982",
+  "sdk_version": "0.3.5",
+  "status": "integration-preview-no-derived-weights"
+}

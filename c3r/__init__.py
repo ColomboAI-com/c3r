@@ -1,5 +1,7 @@
 """C3R reference runtime."""
 
+__version__ = "0.1.0"
+
 from .candidate_compiler import CandidateCompiler
 from .commit_gateway import TrustedCommitGateway
 from .cvoc import RobustCvocController
@@ -12,5 +14,5 @@ __all__ = [
     "StateCompiler",
     "TrustedCommitGateway",
     "VerifierFirewall",
+    "__version__",
 ]
-
