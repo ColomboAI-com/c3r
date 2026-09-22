@@ -12,6 +12,17 @@ C3R is disabled.
 
 ## Deliberative providers
 
+The release default is DeepSeek V4.1 Flash. Canonical identifiers are:
+
+- Hugging Face checkpoint: `deepseek-ai/DeepSeek-V4.1-Flash`
+- OpenRouter: `deepseek/deepseek-v4.1-flash`
+- DeepSeek API: `deepseek-flash`
+
+This is a provider default, not execution authority and not a claim that the full checkpoint
+fits the current GCP instance. `c3r.deliberative.default_provider_config` constructs either
+hosted profile without embedding credentials. A self-hosted profile is enabled only after a
+hardware manifest and live inference evidence demonstrate compatibility.
+
 `c3r.adapters.providers.ProviderAdapter` supports four protocol shapes:
 
 - OpenAI;

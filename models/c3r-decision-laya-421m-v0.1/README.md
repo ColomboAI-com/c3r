@@ -12,6 +12,11 @@ tags:
 
 # C3R Decision Laya 421M v0.1 — integration preview
 
+> **Language-model default:** C3R uses `deepseek-ai/DeepSeek-V4.1-Flash` for the
+> separate deliberative path (OpenRouter model `deepseek/deepseek-v4.1-flash`;
+> DeepSeek API alias `deepseek-flash`). This does not replace the Laya-derived
+> System-One decision model described by this preview.
+
 This directory is the release scaffold for the C3R System-One fast path. **It does not contain
 fine-tuned weights and is not an empirical model release.** The runnable implementation loads the
 Apache-2.0 upstream Laya checkpoint only after verifying its exact revision and license, then
