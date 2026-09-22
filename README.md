@@ -65,7 +65,7 @@ failed verification into success, or directly commit an external effect.
 | Authority boundary | action-bound verifier attestations, expiring single-use approvals, atomic nonce claims |
 | Runtime control | conservative CVoC selection, deterministic `STOP`, cost twin, deliberative contracts, trace schema and in-memory hash chain |
 | Operational controls | fail-closed feature flags, tested frontier/open-weight HTTP contracts, Colibri shadow recommendations, canonical trace hash chain |
-| Standalone controller boundary | tested state → candidates → optional Laya → CVoC → independent verifier → recommendation/commit fallback → redacted trace composition; authenticated rate-limited loopback HTTP boundary (not publicly deployed) |
+| Standalone controller boundary | tested state → candidates → optional Laya → CVoC → independent verifier → recommendation/commit fallback → redacted trace composition; data-boundary-aware provider bridge and authenticated rate-limited loopback HTTP boundary (not publicly deployed) |
 
 This compiler is the reviewed vertical slice, not the directive's full Candidate Compiler
 Definition of Done. Rich typed value constraints, per-argument provenance, dominated-branch
