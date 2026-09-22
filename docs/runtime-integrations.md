@@ -37,8 +37,10 @@ invalid JSON, oversize content, or non-success HTTP status fail closed. `Provide
 converts transport, outage, timeout, and malformed-response failures into the deterministic action
 selected by host policy. API keys are supplied by the host and are absent from results and telemetry.
 
-These are protocol-level contracts. A provider becomes release-qualified only after credentialed
-tests capture model revision, region, latency, usage, failure, and fallback evidence.
+These are protocol-level contracts. Single credentialed, fixed-prompt OpenRouter probes for
+DeepSeek, Qwen3.8 Flash, and Claude Sonnet 4.6 capture limited latency and usage evidence.
+A provider becomes release-qualified only after multi-case tests capture model revision,
+region, latency, usage, failure, and fallback evidence in the integrated C3R path.
 `c3r.deliberative.provider_bridge.ProviderDeliberator` connects compiled state to the adapter
 while rejecting local-only state for remote endpoints. Its structured plan has no commit authority.
 
