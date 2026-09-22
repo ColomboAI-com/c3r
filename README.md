@@ -20,6 +20,20 @@ fast path with calibration-gated abstention, and a reproducible DecisionMix v1 s
 It is a research alpha: the controller is runnable and tested; fine-tuned weights and empirical
 production calibration remain release gates, not implied claims.
 
+### Default language model
+
+C3R's default **deliberative** language model is
+[`deepseek-ai/DeepSeek-V4.1-Flash`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash)
+(MIT). The hosted default uses `deepseek/deepseek-v4.1-flash` through OpenRouter; the
+official DeepSeek API alias is `deepseek-flash`. Laya remains the separate System-One
+decision fast path, and DeepSeek recommendations remain subject to the same verifier and
+trusted commit boundary as every other candidate.
+
+The 763B-parameter checkpoint is not assumed to fit a single GPU merely because only
+8B/16B parameters are active per token. A GCP deployment must pass storage, aggregate
+accelerator memory, runtime-version, and smoke-test gates before C3R labels it self-hosted;
+otherwise the GPU service uses the hosted provider profile and stores no model weights.
+
 ## Why C3R
 
 Most agent stacks decide *what to say*. C3R decides *what computation should happen next*—and
