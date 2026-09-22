@@ -25,6 +25,15 @@ low confidence, or a small top-two margin produces an abstention.
 - License: Apache-2.0
 - Integration dependency: `laya==0.3.5`
 
+## Research papers
+
+- [System-One Integration Edition v5](https://huggingface.co/ColomboAI/C3R-Decision-Laya-421M-v0.1/blob/main/C3R_System_One_Integration_v5.pdf) - the complete 38-page
+  architecture, prior-art boundary, algorithms, falsification protocol, and implementation roadmap.
+- [arXiv Preprint v5](https://huggingface.co/ColomboAI/C3R-Decision-Laya-421M-v0.1/blob/main/C3R_ArXiv_Preprint_v5.pdf) - the concise 10-page academic preprint.
+
+The papers describe the target C3R architecture. Their full Definition of Done is broader than
+this reviewed implementation slice; the release status below is authoritative for this repository.
+
 ## Safety boundary
 
 The model answers fixed typed questions. It does not grant permissions, choose its authoritative

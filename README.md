@@ -98,10 +98,12 @@ is `STOP`.
 
 ## Launch artifacts
 
-- [`data/decisionmix-v1-preview`](data/decisionmix-v1-preview) — Hugging Face-ready synthetic
-  dataset card, immutable splits, and content hashes.
-- [`models/c3r-decision-laya-421m-v0.1`](models/c3r-decision-laya-421m-v0.1) — model-card scaffold,
-  exact base revision, and machine-readable calibration/training/evaluation gates.
+- [C3R DecisionMix v1 Preview](https://huggingface.co/datasets/ColomboAI/C3R-DecisionMix-v1-preview)
+  — published synthetic schema dataset with immutable splits and content hashes; its source is
+  mirrored in [`data/decisionmix-v1-preview`](data/decisionmix-v1-preview).
+- [C3R Decision Laya 421M v0.1](https://huggingface.co/ColomboAI/C3R-Decision-Laya-421M-v0.1)
+  — integration-preview model card, exact base revision, both research papers, and machine-readable
+  calibration/training/evaluation gates; no derived weights are claimed.
 - [`docs/architecture.md`](docs/architecture.md) — trust boundaries and component contracts.
 - [`docs/roadmap.md`](docs/roadmap.md) — what remains before production qualification.
 
@@ -119,7 +121,8 @@ host orchestration must route to its deliberative envelope.
 
 ## DecisionMix v1
 
-The included preview is intentionally synthetic. It validates the entire publication contract
+The [published preview](https://huggingface.co/datasets/ColomboAI/C3R-DecisionMix-v1-preview)
+is intentionally synthetic. It validates the entire publication contract
 without presenting generated fixtures as real training evidence. The empirical corpus will ship
 only when provenance, licensing, held-out integrity, and calibration support are independently
 auditable.
