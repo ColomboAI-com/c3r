@@ -29,10 +29,10 @@ official DeepSeek API alias is `deepseek-flash`. Laya remains the separate Syste
 decision fast path, and DeepSeek recommendations remain subject to the same verifier and
 trusted commit boundary as every other candidate.
 
-The 763B-parameter checkpoint is not assumed to fit a single GPU merely because only
-8B/16B parameters are active per token. A GCP deployment must pass storage, aggregate
-accelerator memory, runtime-version, and smoke-test gates before C3R labels it self-hosted;
-otherwise the GPU service uses the hosted provider profile and stores no model weights.
+The official checkpoint has passed a private 8×H100 GCP serving smoke test and is backed
+up in a private GCS bucket. Its vLLM endpoint is bound to localhost; this is **not** a
+public C3R service or end-to-end production qualification. The checkpoint's active
+parameter count does not imply it fits on one GPU.
 
 ## Why C3R
 
@@ -63,8 +63,9 @@ failed verification into success, or directly commit an external effect.
 | Laya fast path | exact upstream revision and license verification, typed probabilities, slice calibration, confidence/margin abstention |
 | DecisionMix v1 | validated records, immutable deterministic splits, source/license provenance, SHA-256 manifest, 144-record synthetic preview |
 | Authority boundary | action-bound verifier attestations, expiring single-use approvals, atomic nonce claims |
-| Runtime control | conservative CVoC selection, deterministic `STOP`, cost twin, deliberative contracts, evidence-grade traces |
+| Runtime control | conservative CVoC selection, deterministic `STOP`, cost twin, deliberative contracts, trace schema and in-memory hash chain |
 | Operational controls | fail-closed feature flags, tested frontier/open-weight HTTP contracts, Colibri shadow recommendations, canonical trace hash chain |
+| Standalone controller boundary | tested state → candidates → optional Laya → CVoC → independent verifier → recommendation/commit fallback → redacted trace composition; authenticated rate-limited loopback HTTP boundary (not publicly deployed) |
 
 This compiler is the reviewed vertical slice, not the directive's full Candidate Compiler
 Definition of Done. Rich typed value constraints, per-argument provenance, dominated-branch
@@ -127,6 +128,8 @@ is `STOP`.
   every Definition of Done item in Execution Directive v2.
 - [`docs/empirical-release-plan.md`](docs/empirical-release-plan.md) — gated path from synthetic
   preview to trained, calibrated, independently reproducible release.
+- [`docs/standalone-launch.md`](docs/standalone-launch.md) — current production exit gates,
+  evidence status, and operator inputs, with MC-1 excluded from standalone scope only.
 - [`docs/launch-announcement.md`](docs/launch-announcement.md) — canonical launch copy plus
   LinkedIn, X, and Hacker News variants with a publication checklist.
 - [`docs/prior-art.md`](docs/prior-art.md) — explicit attribution links and the canonical novelty

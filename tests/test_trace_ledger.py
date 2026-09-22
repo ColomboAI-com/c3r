@@ -1,5 +1,6 @@
 import json
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 
 from c3r.telemetry.trace import DecisionTrace
 from c3r.telemetry.trace_ledger import TraceLedger
@@ -48,6 +49,14 @@ class TraceLedgerTests(unittest.TestCase):
 
         self.assertTrue(TraceLedger.verify(restored.records))
         self.assertEqual(restored.records[0].record_hash, ledger.records[0].record_hash)
+
+    def test_concurrent_appends_keep_one_valid_chain(self) -> None:
+        ledger = TraceLedger()
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(lambda index: ledger.append(trace(f"run-{index}")), range(100)))
+
+        self.assertEqual(len(ledger.records), 100)
+        self.assertTrue(TraceLedger.verify(ledger.records))
 
 
 if __name__ == "__main__":

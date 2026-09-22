@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass
+from threading import Lock
 
 from .trace import DecisionTrace
 
@@ -29,10 +30,12 @@ class TraceLedger:
         if records and not self.verify(records):
             raise ValueError("trace ledger hash chain is invalid")
         self._records = list(records)
+        self._lock = Lock()
 
     @property
     def records(self) -> tuple[LedgerRecord, ...]:
-        return tuple(self._records)
+        with self._lock:
+            return tuple(self._records)
 
     def append(self, trace: DecisionTrace) -> LedgerRecord:
         canonical = json.dumps(
@@ -42,15 +45,16 @@ class TraceLedger:
             ensure_ascii=False,
             allow_nan=False,
         )
-        previous = self._records[-1].record_hash if self._records else _GENESIS_HASH
-        record = LedgerRecord(previous, _record_hash(previous, canonical), canonical)
-        self._records.append(record)
-        return record
+        with self._lock:
+            previous = self._records[-1].record_hash if self._records else _GENESIS_HASH
+            record = LedgerRecord(previous, _record_hash(previous, canonical), canonical)
+            self._records.append(record)
+            return record
 
     def to_jsonl(self) -> str:
         return "\n".join(
             json.dumps(asdict(record), sort_keys=True, separators=(",", ":"))
-            for record in self._records
+            for record in self.records
         )
 
     @classmethod
