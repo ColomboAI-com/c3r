@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from dataclasses import dataclass
-import math
 
 from .calibration import CalibrationKey, TemperatureCalibrator
 
@@ -17,12 +17,20 @@ class CalibrationExample:
 
 
 @dataclass(frozen=True, slots=True)
+class RiskCoveragePoint:
+    coverage: float
+    selective_risk: float
+    accepted: int
+
+
+@dataclass(frozen=True, slots=True)
 class CalibrationMetrics:
     accuracy: float
     brier: float
     ece: float
     maximum_calibration_error: float
     nll: float
+    risk_coverage: tuple[RiskCoveragePoint, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +68,7 @@ def calibration_metrics(
     brier = 0.0
     nll = 0.0
     bucket_values: list[list[tuple[float, float]]] = [[] for _ in range(bins)]
+    confidence_outcomes: list[tuple[float, float]] = []
     for example in examples:
         probabilities = _softmax(example.logits, temperature)
         if not 0 <= example.label_index < len(probabilities):
@@ -73,6 +82,7 @@ def calibration_metrics(
         )
         nll -= math.log(max(probabilities[example.label_index], 1e-12))
         confidence = max(probabilities)
+        confidence_outcomes.append((confidence, is_correct))
         bucket = min(int(confidence * bins), bins - 1)
         bucket_values[bucket].append((confidence, is_correct))
 
@@ -86,12 +96,31 @@ def calibration_metrics(
         calibration_errors.append((len(values), abs(average_confidence - average_accuracy)))
     ece = sum(size * error for size, error in calibration_errors) / count
     mce = max((error for _, error in calibration_errors), default=0.0)
+    confidence_outcomes.sort(key=lambda item: item[0], reverse=True)
+    accepted_counts = sorted(
+        {
+            max(1, math.ceil(count * requested_coverage))
+            for requested_coverage in (0.25, 0.50, 0.75, 1.0)
+        }
+    )
+    risk_coverage = tuple(
+        RiskCoveragePoint(
+            coverage=accepted / count,
+            selective_risk=(
+                1.0
+                - sum(outcome for _, outcome in confidence_outcomes[:accepted]) / accepted
+            ),
+            accepted=accepted,
+        )
+        for accepted in accepted_counts
+    )
     return CalibrationMetrics(
         accuracy=correct / count,
         brier=brier / count,
         ece=ece,
         maximum_calibration_error=mce,
         nll=nll / count,
+        risk_coverage=risk_coverage,
     )
 
 

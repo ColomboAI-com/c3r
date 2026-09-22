@@ -20,24 +20,24 @@ The full directive is **not complete**. The current release is the first reviewe
 | 25 | C3R-specific Laya checkpoint exists and is calibrated | blocked externally | no governed empirical corpus, training run, derived weights, or held-out calibration evidence |
 | 26 | checkpoint published with attribution | partial | Hugging Face integration-preview repository, license, NOTICE, paper links, and upstream manifest are published; no derived checkpoint exists |
 | 27 | empirical DecisionMix v1 published | partial | synthetic 144-record schema preview with deterministic splits and hashes is public; empirical provenance-audited corpus remains |
-| 28 | Qwen/DeepSeek/frontier Deliberative Envelope works | partial | structured envelope and adapter contracts exist; production providers/open-weight runtimes and paired tests do not |
+| 28 | Qwen/DeepSeek/frontier Deliberative Envelope works | partial | structured envelope plus tested OpenAI, Anthropic, Gemini, and OpenAI-compatible Qwen/DeepSeek/vLLM/SGLang/MC-1 request/response contracts exist; live provider qualification and paired end-to-end traces do not |
 | 29 | CVoC uses measured runtime cost/risk | partial | conservative reference calculation and fallback tests exist; calibrated production inputs and end-to-end measured traces do not |
 | 30 | Verifier Firewall and Commit Gateway independent | partial | independent reference modules, action-bound attestations, atomic expiring approvals, and bypass tests; host-level complete mediation remains |
-| 31 | OpenAI-compatible MC-1 API supports System-One | blocked externally | requires MC-1 service repository and product authorization |
-| 32 | MC-1 Console visualizes both paths | blocked externally | requires MC-1 console repository, trace backend, and product integration |
-| 33 | Colibri adapter runs in shadow mode | blocked externally | requires `c3r-colibri`, a compatible Colibri build, runtime telemetry, and shadow environment |
-| 34 | calibration metrics reproduce from raw traces | partial | fitter and accuracy/Brier/ECE/MCE/NLL tests exist; no empirical raw traces or selective-risk release pack |
+| 31 | OpenAI-compatible MC-1 API supports System-One | not started | the private `MC-1-platform` repository is identified and accessible, but the request contract, controller service, traces, and production qualification are not implemented |
+| 32 | MC-1 Console visualizes both paths | not started | the private `MC-1-platform` console is identified and accessible, but C3R trace ingestion, read models, and UI are not implemented |
+| 33 | Colibri adapter runs in shadow mode | partial | non-authoritative recommendations consume the required telemetry shape and retain native fallback in tests; a dedicated `c3r-colibri` repository, compatible build, and live shadow traces remain |
+| 34 | calibration metrics reproduce from raw traces | partial | fitter and accuracy/Brier/ECE/MCE/NLL/selective-risk tests plus a tamper-evident trace ledger exist; no empirical raw trace release pack |
 | 35 | all controller baselines compared identically | not started | requires immutable empirical test states and pinned serving environments |
 | 36 | no non-comparable TypeSafe Jev/RLCD claim | complete | repository and cards make no apples-to-apples Jev claim and preserve the caveat |
-| 37 | deterministic fallback survives controller failure | partial | conservative STOP and fail-closed malformed-output behavior are tested; provider/controller timeout and end-to-end outage suite remain |
-| 38 | global learned-fast-path disable preserves MC-1 | blocked externally | feature flags are documented; product-level kill-switch verification requires MC-1 integration |
+| 37 | deterministic fallback survives controller failure | partial | conservative STOP, malformed provider output, Colibri controller failure, and fail-closed prediction behavior are tested; live provider timeout and end-to-end outage qualification remain |
+| 38 | global learned-fast-path disable preserves MC-1 | partial | fail-closed reference flags and global-disable tests exist; product-level MC-1 kill-switch integration and rollback evidence remain |
 | 39 | README/docs/cards/papers/examples/security/license complete | partial | core documentation, release cards, both papers, security, license, NOTICE, and citation exist; production examples and remaining component cards follow their implementations |
 
 ## Directive-wide gaps outside the numbered DoD
 
 - The public `c3r-evals` and `c3r-colibri` repositories are not present.
-- Production adapters for OpenAI, Anthropic, Gemini, Qwen, DeepSeek, vLLM, SGLang, llama.cpp,
-  MC-1 providers, and Colibri are not shipped.
+- Provider protocol contracts are shipped, but credentialed qualification for OpenAI, Anthropic,
+  Gemini, Qwen, DeepSeek, vLLM, SGLang, llama.cpp, and MC-1 is not yet evidenced.
 - Required empirical tests for multilingual traffic, unseen schemas, provider outages, inventory
   changes, calibration drift, and Colibri fallback are not complete.
 - MC-1 website, API, console, admin, docs, pricing, billing, and usage analytics integration is not

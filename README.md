@@ -50,6 +50,7 @@ failed verification into success, or directly commit an external effect.
 | DecisionMix v1 | validated records, immutable deterministic splits, source/license provenance, SHA-256 manifest, 144-record synthetic preview |
 | Authority boundary | action-bound verifier attestations, expiring single-use approvals, atomic nonce claims |
 | Runtime control | conservative CVoC selection, deterministic `STOP`, cost twin, deliberative contracts, evidence-grade traces |
+| Operational controls | fail-closed feature flags, tested frontier/open-weight HTTP contracts, Colibri shadow recommendations, tamper-evident trace ledger |
 
 This compiler is the reviewed vertical slice, not the directive's full Candidate Compiler
 Definition of Done. Rich typed value constraints, per-argument provenance, dominated-branch
@@ -98,6 +99,8 @@ is `STOP`.
 
 ## Launch artifacts
 
+- [C3R v0.1 Hugging Face collection](https://huggingface.co/collections/ColomboAI/c3r-robust-calibrated-compute-control-v01)
+  — the model preview, DecisionMix preview, and attributed upstream Laya checkpoint in one release collection.
 - [C3R DecisionMix v1 Preview](https://huggingface.co/datasets/ColomboAI/C3R-DecisionMix-v1-preview)
   — published synthetic schema dataset with immutable splits and content hashes; its source is
   mirrored in [`data/decisionmix-v1-preview`](data/decisionmix-v1-preview).
@@ -154,12 +157,16 @@ C3R_ONLINE_LEARNING=false
 ```
 
 Disabling the learned fast path must leave the host's normal deterministic fallback operational.
+`FeatureFlags.from_mapping` enforces those switches fail-closed and rejects autonomous online
+learning. The reference provider and Colibri shadow contracts are documented in
+[`docs/runtime-integrations.md`](docs/runtime-integrations.md).
 
 ## Release truth
 
 Not yet claimed: trained `C3R-Decision-Laya-421M-v0.1` weights, empirical DecisionMix training
-data, production provider adapters, MC-1 integration, Colibri control, or measured production
-calibration/latency/cost results. They remain documented gates in the roadmap.
+data, live provider qualification, MC-1 product integration, a Colibri shadow deployment, or
+measured production calibration/latency/cost results. Tested adapter and shadow-control contracts
+are included, but they are not represented as production runs. These remain documented gates.
 
 The upstream base is [Laya by Convai Innovations](https://huggingface.co/convaiinnovations/laya),
 licensed Apache-2.0. C3R is a broader runtime architecture, not a fork or rebranding of Laya.
