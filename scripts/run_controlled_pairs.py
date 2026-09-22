@@ -6,13 +6,13 @@ DeepSeek, calibrated CVoC, or live Colibri behavior.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
-from hashlib import sha256
 import json
-from pathlib import Path
 import platform
 import sys
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
+from hashlib import sha256
+from pathlib import Path
 from time import perf_counter
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -26,7 +26,13 @@ from c3r.feature_flags import FeatureFlags
 from c3r.runtime import RuntimeRequest, StandaloneController
 from c3r.state_compiler import StateCompiler
 from c3r.state_schema import (
-    ActionDefinition, ActionFamily, AuthorityPolicy, Provenance, RawState, RiskClass,
+    ActionCandidate,
+    ActionDefinition,
+    ActionFamily,
+    AuthorityPolicy,
+    Provenance,
+    RawState,
+    RiskClass,
     ValueEstimate,
 )
 from c3r.telemetry.trace_ledger import TraceLedger
@@ -81,7 +87,7 @@ def _request(case: ControlledCase, arm: str) -> RuntimeRequest:
 
 
 def _run(case: ControlledCase, arm: str) -> dict[str, object]:
-    effects = []
+    effects: list[ActionCandidate] = []
     key = b"controlled-verifier-test-key"
     verifier = VerifierFirewall(
         {"policy": lambda _: VerifierDecision(case.verifier_accepts, "fixture policy")},
@@ -126,7 +132,7 @@ def _run(case: ControlledCase, arm: str) -> dict[str, object]:
 def collect() -> tuple[list[dict[str, object]], dict[str, object]]:
     observations = [_run(case, arm) for case in CASES for arm in ("baseline", "c3r")]
     cases_json = json.dumps([asdict(case) for case in CASES], sort_keys=True, default=str)
-    manifest = {
+    manifest: dict[str, object] = {
         "evidence_kind": "controlled",
         "task_population": "five C3R-authored authority/selection fixtures",
         "rubric_sha256": sha256(cases_json.encode("utf-8")).hexdigest(),
@@ -148,7 +154,7 @@ def main() -> None:
     manifest.update({
         "observations_sha256": sha256(observations_bytes).hexdigest(),
         "generator_sha256": sha256(Path(__file__).read_bytes()).hexdigest(),
-        "collected_at": datetime.now(timezone.utc).isoformat(),
+        "collected_at": datetime.now(UTC).isoformat(),
         "python_version": platform.python_version(),
         "platform": platform.platform(),
     })

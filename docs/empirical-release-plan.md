@@ -15,8 +15,12 @@ recorded; its upstream test split stays in a sealed comparison harness, never in
 train, validation, or calibration. Self-hosted DeepSeek can generate proposals from approved
 prompts, but its own output is not an independent verifier or task-outcome label.
 
-The first empirical source must therefore be **new C3R-controlled execution traces** or an
-independently authorized trace source. Before admission, record the source owner, task
+The user approved **C3R-controlled internal tasks only** as the present
+training/evaluation source. Do not ingest customer, product, Laya-user, DeepSeek-user,
+or Colibri operational logs under this authorization. The first controlled source is
+the [five-case local paired replay](controlled-replay.md), which is a pipeline smoke
+test, not an empirical DecisionMix corpus or training/calibration set. Before
+expanding the controlled corpus, record the source owner, task
 population, data-use rights, consent/privacy basis where applicable, retention/deletion rule,
 redaction policy, and separate internal-training and public-publication scopes. Execute paired
 baseline/controller runs against the same immutable tasks with independent verifier and
