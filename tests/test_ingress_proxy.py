@@ -1,4 +1,5 @@
 import json
+import socket
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -101,20 +102,31 @@ class IngressProxyTests(unittest.TestCase):
         self.assertEqual(self.upstream.seen, [])
 
     def test_rejects_ambiguous_framing_and_non_json_body(self):
-        for headers in (
-            {"Content-Type": "text/plain"},
-            {"Transfer-Encoding": "chunked"},
-            {"Content-Length": "2, 3"},
+        request = Request(
+            self.base + "/v1/decisions",
+            data=b"{}",
+            headers={"X-C3R-Token": CLIENT_TOKEN, "Content-Type": "text/plain"},
+            method="POST",
+        )
+        with self.assertRaises(HTTPError) as raised:
+            urlopen(request, timeout=2)
+        self.assertEqual(raised.exception.code, 415)
+
+        for framing in (
+            b"Content-Length: 2\r\nTransfer-Encoding: chunked\r\n",
+            b"Content-Length: 2\r\nContent-Length: 2\r\n",
         ):
-            request = Request(
-                self.base + "/v1/decisions",
-                data=b"{}",
-                headers={"X-C3R-Token": CLIENT_TOKEN, **headers},
-                method="POST",
+            packet = (
+                b"POST /v1/decisions HTTP/1.0\r\nHost: localhost\r\n"
+                + f"X-C3R-Token: {CLIENT_TOKEN}\r\n".encode()
+                + b"Content-Type: application/json\r\n"
+                + framing + b"\r\n{}"
             )
-            with self.assertRaises(HTTPError) as raised:
-                urlopen(request, timeout=2)
-            self.assertIn(raised.exception.code, {400, 413, 415})
+            with socket.create_connection(("127.0.0.1", self.ingress.server_port), timeout=2) as sock:
+                sock.sendall(packet)
+                response = sock.recv(4096)
+            self.assertTrue(response.startswith(b"HTTP/1.0 400 ") or
+                            response.startswith(b"HTTP/1.0 413 "))
         self.assertEqual(self.upstream.seen, [])
 
     def test_upstream_failure_is_not_mistaken_for_success(self):
