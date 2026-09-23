@@ -95,7 +95,11 @@ after rollback. This proves revision traffic rollback for the disabled staging
 host, not incident response timing or a production rollback. Cloud Monitoring
 policy `11003571770572095050` watches this service's 5xx request count and
 routes to Wilfried's work-email channel, but delivery and acknowledgement have
-not been exercised.
+not been verified. A temporary 2xx notification drill on 2026-09-23 observed
+the authorized health-request metric but no Monitoring incident during the
+check window; the drill policy was disabled. This is an open monitoring
+qualification finding, not evidence of successful paging. The persistent
+5xx policy remains enabled.
 
 ## Staged promotion
 

@@ -28,6 +28,11 @@
     "post_rollback_iam_health_status": 200,
     "staging_5xx_policy_id": "11003571770572095050",
     "on_call_email_channel_created": true,
+    "notification_drill_policy_id": "3641110671112699878",
+    "notification_drill_health_statuses": [200, 200, 200],
+    "notification_drill_2xx_metric_observed": true,
+    "notification_drill_incident_observed": false,
+    "notification_drill_policy_disabled_after_check": true,
     "alert_delivery_verified": false,
     "human_acknowledgement_verified": false
   },
