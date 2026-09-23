@@ -4,7 +4,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from c3r.telemetry.governed_store import GovernedTraceStore, SourceGrant
+from c3r.telemetry.governed_store import BoundGovernedTraceSink, GovernedTraceStore, SourceGrant
 from c3r.telemetry.trace import DecisionTrace
 
 
@@ -63,6 +63,14 @@ class GovernedTraceStoreTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "rights"):
             SourceGrant(source_id="imported", owner="wilkont",
                         task_ids=frozenset({"task_001"}), rights_attested=False)
+
+    def test_trusted_host_can_bind_source_and_task_for_runtime_sink(self):
+        with self.store() as store:
+            sink = BoundGovernedTraceSink(store, source_id="c3r_internal_001", task_id="task_001")
+            record = sink.append(trace())
+            self.assertEqual(store.records(), (record,))
+            with self.assertRaisesRegex(ValueError, "unapproved source or task"):
+                BoundGovernedTraceSink(store, source_id="imported", task_id="task_001")
 
     def test_rejects_free_text_or_private_artifact_reference(self):
         with self.store() as store:

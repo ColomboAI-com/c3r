@@ -77,6 +77,9 @@ storage, anchor the ledger head independently, and prove redaction on the exact
 internal-task source. Token-shape checks cannot detect private names encoded in
 identifier-like strings; source-specific allowlists and human leakage review remain
 mandatory. A library method is not evidence these operations ran.
+The trusted host may use `BoundGovernedTraceSink` to bind a single approved
+source/task to the controller's one-argument trace interface. It must not reuse
+one binding for unrelated requests or accept those identifiers from callers.
 
 No public endpoint, public dataset promotion, model-weight release, or broad access
 is approved by this policy alone. Each requires its own evidence-matched release

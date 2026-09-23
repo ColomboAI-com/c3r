@@ -255,3 +255,22 @@ class GovernedTraceStore:
     def close(self) -> None:
         with self._lock:
             self._db.close()
+
+
+class BoundGovernedTraceSink:
+    """Bind one approved task in trusted host code to the controller's trace API.
+
+    A shared HTTP controller must not reuse this binding across unrelated tasks.
+    The host, never the caller payload, chooses the source and task identifiers.
+    """
+
+    def __init__(self, store: GovernedTraceStore, *, source_id: str, task_id: str) -> None:
+        grant = store._grants.get(source_id)
+        if grant is None or task_id not in grant.task_ids:
+            raise ValueError("unapproved source or task")
+        self._store = store
+        self._source_id = source_id
+        self._task_id = task_id
+
+    def append(self, trace: DecisionTrace) -> LedgerRecord:
+        return self._store.append(trace, source_id=self._source_id, task_id=self._task_id)
