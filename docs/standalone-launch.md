@@ -48,10 +48,12 @@ canary evidence are independently reviewed.
 5. The user designated Wilfried Kouadio (`@wilkont`) as interim accountable
    deployment, release, and data owner, and on 2026-09-23 Wilfried confirmed he
    will be the interim human on-call/rollback operator. The
-   [internal-task policy](internal-task-trace-policy.md) records this. Alert
-   delivery, acknowledgement, rollback access, monitoring, and read-only and
+   [internal-task policy](internal-task-trace-policy.md) records this. A private
+   staging drill opened a Monitoring incident, and Wilfried reported receiving
+   and acknowledging its email; disabled-revision rollback was also exercised.
+   Production incident response timing, broader monitoring, and read-only and
    reversible canary thresholds and aborts still need verification. A named
-   responder is not proof of operational coverage.
+   responder and one drill are not proof of continuous operational coverage.
 6. Wilfried named Swapnil Pawar as the independent data reviewer on 2026-09-23.
    Swapnil accepted by work email that day and reported no conflict. The
    [non-sensitive local fixture dry run](../evidence/trace-control-dry-run-v1/report.json)

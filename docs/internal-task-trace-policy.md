@@ -5,9 +5,11 @@ this task. **Accountable interim deployment, release, and data owner:** Wilfried
 Kouadio (`@wilkont`), as identified by the active ColomboAI GCP account. On
 2026-09-23, Wilfried confirmed that he will serve as the interim human on-call
 and rollback operator via his ColomboAI work identity
-(`wilfried.k@colomboai.com`). This names the responder; it does not prove that
-monitoring, alert delivery, acknowledgement, or rollback access is configured.
-Those controls must be verified before hosted traffic.
+(`wilfried.k@colomboai.com`). A fixed-disabled private staging drill subsequently
+opened a Monitoring incident; Wilfried reported receiving and acknowledging
+its email, and revision rollback was exercised. That one drill does not prove
+continuous operational coverage or production incident response timing.
+Those controls must be verified before governed internal-task traffic.
 
 **Named independent reviewer:** Swapnil Pawar, designated by Wilfried on
 2026-09-23 for internal-task labels and any proposed public de-identified rows.

@@ -44,9 +44,11 @@ verify independence in practice, complete the review, or authorize launch.
   `python scripts/run_trace_control_dry_run.py`.
 - [Private staging evidence](../evidence/staging-deployment-v1/report.json)
   shows a fixed-disabled Cloud Run boundary, IAM and token checks, a service-
-  specific 5xx alert rule, and revision traffic rollback. This is not a live
-  C3R decision route or evidence of governed trace storage, alert delivery,
-  backup deletion, independent anchoring, or canaries.
+  specific 5xx alert rule, revision traffic rollback, and a notification
+  drill that opened a Monitoring incident. Wilfried reported receiving and
+  acknowledging the drill email. This is not a live C3R decision route or
+  evidence of governed trace storage, backup deletion, independent anchoring,
+  automated mailbox audit, response-time SLA, or canaries.
 - [Launch issue #3](https://github.com/ColomboAI-com/c3r/issues/3) lists the
   unclosed production gates. Governed live trace collection remains off.
 

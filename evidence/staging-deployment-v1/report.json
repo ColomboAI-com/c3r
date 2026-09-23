@@ -31,10 +31,13 @@
     "notification_drill_policy_id": "3641110671112699878",
     "notification_drill_health_statuses": [200, 200, 200],
     "notification_drill_2xx_metric_observed": true,
-    "notification_drill_incident_observed": false,
+    "notification_drill_incident_observed": true,
+    "notification_drill_incident_open_time_utc": "2026-09-23T15:24:53Z",
     "notification_drill_policy_disabled_after_check": true,
-    "alert_delivery_verified": false,
-    "human_acknowledgement_verified": false
+    "alert_delivery_verified": true,
+    "alert_delivery_evidence": "Wilfried reported receiving the staging notification drill email in his ColomboAI work mailbox on 2026-09-23; no mailbox delivery log was independently captured",
+    "human_acknowledgement_verified": true,
+    "human_acknowledgement_evidence": "Wilfried confirmed receipt and acknowledgement in the C3R launch task on 2026-09-23"
   },
   "not_verified": [
     "functional C3R decision routing or live provider calls",
@@ -42,7 +45,7 @@
     "durable encrypted trace storage and read/export access auditing",
     "daily 30-day deletion including backups",
     "independent ledger-head anchoring",
-    "alert delivery, acknowledgement, or incident response timing",
+    "automated mailbox delivery audit and incident response timing",
     "trained C3R Laya weights, held-out calibration, and empirical DecisionMix",
     "independent safety review and canary evidence",
     "public production launch"

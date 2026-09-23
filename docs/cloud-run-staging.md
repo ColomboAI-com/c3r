@@ -48,8 +48,9 @@ estimates, durable governed storage, and approved source registry is required la
    confirmed interim on-call/rollback operator in the
    [internal-task policy](internal-task-trace-policy.md). Verify the work-email
    alert route and acknowledgement before live internal-task traffic. A C3R-only
-   Cloud Monitoring email channel and 5xx policy now exist, but delivery and
-   human acknowledgement are unverified.
+   Cloud Monitoring email channel and 5xx policy now exist. Wilfried reported
+   receiving and acknowledging a staging drill alert on 2026-09-23; an
+   automated mailbox delivery audit and incident response timing remain open.
 2. Implement the approved internal-task trace policy: source registry, field
    allowlist, redaction tests, 30-day private deletion including backups, access
    audit, and publication review. The approved scope is only redacted telemetry
@@ -94,12 +95,14 @@ was deployed, then traffic was explicitly restored 100% to the original
 after rollback. This proves revision traffic rollback for the disabled staging
 host, not incident response timing or a production rollback. Cloud Monitoring
 policy `11003571770572095050` watches this service's 5xx request count and
-routes to Wilfried's work-email channel, but delivery and acknowledgement have
-not been verified. A temporary 2xx notification drill on 2026-09-23 observed
-the authorized health-request metric but no Monitoring incident during the
-check window; the drill policy was disabled. This is an open monitoring
-qualification finding, not evidence of successful paging. The persistent
-5xx policy remains enabled.
+routes to Wilfried's work-email channel. A temporary 2xx notification drill
+on 2026-09-23 observed
+the authorized health-request metric and opened Monitoring incident
+`0.ocyx1hrngr2m` at 15:24:53 UTC, just after the first check and policy
+disable. Wilfried subsequently reported receiving and acknowledging the drill
+email in his work mailbox. This is operator-reported delivery evidence, not
+an automated mailbox audit or response-time SLA test. The drill policy is
+disabled; the persistent 5xx policy remains enabled.
 
 ## Staged promotion
 
