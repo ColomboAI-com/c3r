@@ -86,8 +86,9 @@ intentionally non-sensitive dry run.
 On 2026-09-23 a separate empty C3R-only staging bucket and 28-day deletion
 backstops were provisioned. The bucket has uniform access, public-access
 prevention, no versioning or soft-delete retention, and a 28-day lifecycle rule.
-A least-privilege Cloud Run purge job completed one empty-bucket run; a daily UTC
-scheduler was configured. See the [staging retention evidence](../evidence/private-retention-staging-v1/report.json).
+A least-privilege Cloud Run purge job completed both a direct and a scheduler-
+triggered empty-bucket run; a daily UTC schedule is configured. See the
+[staging retention evidence](../evidence/private-retention-staging-v1/report.json).
 This does **not** demonstrate deletion of expired data, backup deletion,
 read/export auditing, independent anchoring, or approved live-source operation.
 The disabled C3R service has no access to the bucket. Collection stays off.

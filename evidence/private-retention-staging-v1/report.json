@@ -1,5 +1,5 @@
 {
-  "as_of_utc": "2026-09-23T15:44:00Z",
+  "as_of_utc": "2026-09-23T15:49:33Z",
   "scope": "private staging control, no trace collection",
   "project": "columboai-frontend",
   "region": "us-central1",
@@ -37,10 +37,19 @@
     "service_account": "c3r-retention-scheduler@columboai-frontend.iam.gserviceaccount.com",
     "authority": "roles/run.invoker on c3r-retention-purge only",
     "manual_trigger_requested": true,
-    "manual_trigger_verified": false
+    "manual_trigger_verified": true,
+    "triggered_execution": "c3r-retention-purge-5zw56",
+    "triggered_execution_result": "completed successfully",
+    "triggered_execution_report": {
+      "objects_before": 0,
+      "expired_candidates": 0,
+      "objects_after": 0,
+      "expired_remaining": 0,
+      "trace_collection_enabled": false
+    }
   },
   "not_verified": [
-    "scheduled execution completion",
+    "first natural daily scheduled execution",
     "deletion of an expired object",
     "backup and replica deletion under live data",
     "effective inherited IAM and read/export audit",

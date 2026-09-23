@@ -81,8 +81,8 @@ fixed-disabled deployment and the controls still blocking live collection and
 production promotion.
 
 The [private retention staging record](../evidence/private-retention-staging-v1/report.json)
-adds an empty access-restricted bucket, 28-day lifecycle rule, tested empty-bucket
-purge job, and configured daily scheduler. It is not evidence of deletion of
+adds an empty access-restricted bucket, 28-day lifecycle rule, direct and scheduler-
+triggered empty-bucket purge runs, and configured daily schedule. It is not evidence of deletion of
 expired rows or backups, audited data access, independent ledger anchoring, or
 reviewer approval. The C3R decision service remains fixed-disabled and cannot
 write traces.

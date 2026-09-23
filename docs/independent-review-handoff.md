@@ -51,8 +51,9 @@ verify independence in practice, complete the review, or authorize launch.
   automated mailbox audit, response-time SLA, or canaries.
 - [Private retention staging evidence](../evidence/private-retention-staging-v1/report.json)
   records an empty dedicated bucket, restricted purge identity, 28-day lifecycle
-  backstop, configured daily schedule, and one successful empty-bucket purge.
-  It does not prove scheduled execution, expired-object or backup deletion,
+  backstop, configured daily schedule, and successful direct and scheduler-
+  triggered empty-bucket purges. It does not prove the first natural daily run,
+  expired-object or backup deletion,
   data-access auditing, source governance, or independent anchoring.
 - [Launch issue #3](https://github.com/ColomboAI-com/c3r/issues/3) lists the
   unclosed production gates. Governed live trace collection remains off.

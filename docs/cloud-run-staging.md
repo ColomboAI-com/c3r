@@ -45,9 +45,9 @@ estimates, durable governed storage, and approved source registry is required la
 An independent, empty C3R trace bucket and retention purge job now exist in
 staging. The bucket is not mounted or granted to `c3r-staging`; the purge job's
 service account has only bucket-scoped list/delete authority. A 28-day lifecycle
-delete rule and daily UTC scheduler are configured, and one manual empty-bucket
-purge completed. The [retention staging record](../evidence/private-retention-staging-v1/report.json)
-distinguishes these observations from unverified scheduled execution, expired
+delete rule and daily UTC scheduler are configured, and direct and scheduler-
+triggered empty-bucket purges completed. The [retention staging record](../evidence/private-retention-staging-v1/report.json)
+distinguishes these observations from the first natural daily run, expired
 object/backup deletion, effective inherited IAM, and access auditing. Nothing
 about this bucket enables trace collection or production qualification.
 
