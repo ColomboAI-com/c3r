@@ -20,23 +20,32 @@ it public is a separate release action after qualification.
    constant values must not be presented as measured production CVoC inputs.
 4. Add a durable trace store, independent ledger-head anchor, backup and deletion
    procedure, monitoring, alert thresholds, request budget, and a kill switch.
-5. Package the tested `C3RIngressServer` with the loopback `C3RHTTPServer` in one
-   container. The ingress can listen on `0.0.0.0:$PORT`, while the backend retains
+5. The repository now includes a fail-closed `Dockerfile` and `python -m c3r.serve`
+   composition for the tested `C3RIngressServer` and loopback `C3RHTTPServer`.
+   The ingress listens on `0.0.0.0:$PORT`, while the backend retains
    its loopback-only invariant. It allowlists `/health`, `/metrics`, and
    `/v1/decisions`, requires a separate client token for protected routes, replaces
    caller credentials with a distinct backend token, and caps body size, response
    size, request rate, concurrency, and upstream wait time. Local tests cover these
-   boundaries and backend failure; no Cloud Run image or service has been built.
+   boundaries, backend failure, and local server composition; no Cloud Run image or
+   service has been built. Docker Desktop was unavailable during this check, so the
+   image itself has not yet been built or scanned.
    Bind this ingress only behind Cloud Run's IAM/TLS boundary at staging, with
    tokens from Secret Manager. Do not publish it as a raw unauthenticated port.
 6. Establish a private, authenticated service-to-service route to the GPU model;
    never publish the model's localhost inference port. Verify the model checkpoint
    backup before any GPU VM lifecycle change.
 
-The ingress code is a transport boundary, not a deployment composition or a
-production authorization system. A container entrypoint, host-owned measured
-estimates, durable ledger storage, secret rotation, and end-to-end Cloud Run tests
-remain necessary before staging traffic.
+`C3R_HOST_ENTRYPOINT=trusted_module:build` is mandatory. The trusted callable must
+return a recommendation-only `StandaloneController` and a `RequestFactory` whose
+estimate source uses measured, pre-decision values. The container supplies **no**
+sample catalog, constant estimates, data collection, or production credentials.
+`C3R_CLIENT_TOKEN` and `C3R_BACKEND_TOKEN` are distinct mandatory secrets of at
+least 32 characters; `PORT` defaults to 8080 and `C3R_BACKEND_PORT` to 8081.
+The trusted host module must be included in a derived private image or approved
+runtime package. This is packaging, not proof that a calibrated host or secure
+storage exists. Image build/scan, durable ledger storage, secret rotation, and
+end-to-end Cloud Run tests remain necessary before staging traffic.
 
 ## Staged promotion
 
