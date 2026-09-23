@@ -52,7 +52,9 @@ canary evidence are independently reviewed.
 6. Wilfried named Swapnil Pawar as the independent data reviewer on 2026-09-23.
    His acceptance, access route, conflict-of-interest check, and sign-off on
    labels, controls, and any public rows remain outstanding. Neither the owner
-   nor this assistant can substitute for that independent review.
+   nor this assistant can substitute for that independent review. The
+   [reviewer handoff](independent-review-handoff.md) defines the requested scope
+   and evidence without implying approval.
 
 ## Internal-task telemetry authorization
 
