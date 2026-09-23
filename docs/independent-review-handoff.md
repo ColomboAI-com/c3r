@@ -74,3 +74,6 @@ and a clear **approve / reject / needs changes** decision for each gate. A
 qualified public launch additionally requires owner release approval and live
 operational evidence. MC-1 is excluded from this standalone scope; it is not
 complete under the original directive.
+The [review record template](reviewer-signoff-template.md) makes the required
+gate-by-gate decisions and evidence fields explicit; it is not a pre-filled
+approval.
