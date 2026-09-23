@@ -191,7 +191,11 @@ class GovernedTraceStore:
         if grant is None or task_id not in grant.task_ids:
             raise ValueError("unapproved source or task")
         _validate_trace(trace)
-        collected_at = self._now().isoformat(timespec="microseconds")
+        now = self._now()
+        collected_at = now.isoformat(timespec="microseconds")
+        retention_cutoff = (now - timedelta(days=RETENTION_DAYS)).isoformat(
+            timespec="microseconds"
+        )
         payload = json.dumps(
             {"collected_at": collected_at, "source_id": source_id, "task_id": task_id,
              "trace": asdict(trace)},
@@ -205,6 +209,12 @@ class GovernedTraceStore:
                 ).fetchone()
                 if collected_at < last_collected_at:
                     raise ValueError("trace clock moved backwards")
+                overdue = self._db.execute(
+                    "SELECT 1 FROM records WHERE collected_at <= ? LIMIT 1",
+                    (retention_cutoff,),
+                ).fetchone()
+                if overdue is not None:
+                    raise ValueError("retention purge overdue; new collection is disabled")
                 row = self._db.execute(
                     "SELECT record_hash FROM records ORDER BY sequence DESC LIMIT 1"
                 ).fetchone()
@@ -274,3 +284,4 @@ class BoundGovernedTraceSink:
 
     def append(self, trace: DecisionTrace) -> LedgerRecord:
         return self._store.append(trace, source_id=self._source_id, task_id=self._task_id)
+

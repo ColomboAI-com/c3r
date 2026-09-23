@@ -18,7 +18,9 @@ The current code path is a **tested reference boundary**, not a production servi
 An opt-in governed SQLite trace store now validates internal-task source grants,
 rejects unbounded text and private artifact references, and has a tested 30-day local
 purge/checkpoint operation. It does not run a daily scheduler, delete backups, or
-provide independent audit anchoring. The ordinary SQLite ledger is likewise
+provide independent audit anchoring. New collection now fails closed if an
+expired row remains because the purge was missed; this is a guardrail, not proof
+that deletion ran. The ordinary SQLite ledger is likewise
 optional and does not by itself provide independent audit anchoring;
 the estimates are not yet empirically calibrated, and the HTTP server requires a
 separate TLS/authentication gateway. Keep
@@ -71,3 +73,4 @@ controlled task population only; it cannot establish field performance.
 No public production claim should be made while any exit condition above is unmet.
 The [Cloud Run staging decision](cloud-run-staging.md) records the selected
 launch-capable URL strategy and the prerequisites that still block deployment.
+

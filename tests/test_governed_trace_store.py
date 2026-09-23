@@ -86,10 +86,11 @@ class GovernedTraceStoreTests(unittest.TestCase):
         with self.store(now=NOW - timedelta(days=31)) as store:
             first = store.append(trace(), source_id="c3r_internal_001", task_id="task_001")
         with self.store(now=NOW - timedelta(days=1)) as store:
+            self.assertEqual(store.purge_expired(), 1)
             second = store.append(trace(run_id="run_002"), source_id="c3r_internal_001",
                                   task_id="task_001")
         with self.store(now=NOW) as store:
-            self.assertEqual(store.purge_expired(), 1)
+            self.assertEqual(store.purge_expired(), 0)
             remaining = store.records()
             self.assertEqual(len(remaining), 1)
             self.assertEqual(remaining[0].record_hash, second.record_hash)
@@ -118,6 +119,20 @@ class GovernedTraceStoreTests(unittest.TestCase):
                 store.append(trace(run_id="run_002"), source_id="c3r_internal_001",
                              task_id="task_001")
 
+    def test_overdue_purge_blocks_new_collection_until_purged(self):
+        with self.store(now=NOW - timedelta(days=31)) as store:
+            store.append(trace(), source_id="c3r_internal_001", task_id="task_001")
+        with self.store(now=NOW) as store:
+            with self.assertRaisesRegex(ValueError, "retention purge overdue"):
+                store.append(trace(run_id="run_002"), source_id="c3r_internal_001",
+                             task_id="task_001")
+            self.assertEqual(len(store.records()), 1)
+            self.assertEqual(store.purge_expired(), 1)
+            store.append(trace(run_id="run_002"), source_id="c3r_internal_001",
+                         task_id="task_001")
+            self.assertEqual(len(store.records()), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
+
