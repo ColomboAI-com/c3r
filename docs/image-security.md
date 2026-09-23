@@ -15,14 +15,14 @@ had zero HIGH/CRITICAL Alpine OS findings but two HIGH Python packaging
 findings. [Run 52](https://github.com/ColomboAI-com/c3r/actions/runs/35869500670)
 showed that uninstalling those names alone did not remove copies vendored
 inside `setuptools`; the runtime therefore removes `setuptools` itself, which
-C3R does not import. This still requires scan verification. The image runs as
-UID/GID 10001 and is smoke-imported in CI before scanning. The HIGH/CRITICAL
-scan failed closed until [run 54](https://github.com/ColomboAI-com/c3r/actions/runs/35869921657)
-built and smoke-imported the image and reported zero HIGH/CRITICAL findings
-for both Alpine and Python packages. The base image is now pinned to the exact
-digest resolved in that successful build. A follow-up run with Trivy v0.74.0
-must still confirm the pinned image; lower-severity findings have not been
-triaged in this HIGH/CRITICAL-only report.
+C3R does not import. The image runs as UID/GID 10001 and is smoke-imported in
+CI before scanning. [Run 56](https://github.com/ColomboAI-com/c3r/actions/runs/35870568965)
+passed the three-version Python test matrix, built the digest-pinned image,
+smoke-imported C3R, and scanned it with Trivy v0.74.0. Its retained JSON
+artifact reports **zero HIGH and zero CRITICAL findings** for the scanned
+image. This is a point-in-time result, not a waiver for the earlier image or a
+guarantee against future disclosures. Lower-severity findings were outside the
+configured HIGH/CRITICAL scan and have not been triaged by this report.
 
 Even a clean scan is only one security gate. A production image still needs
 registry publication, signature/SBOM, deployment IAM and network
