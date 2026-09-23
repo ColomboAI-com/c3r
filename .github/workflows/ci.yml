@@ -25,3 +25,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build --pull --tag c3r:ci .
+      - name: Scan image for high and critical vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: c3r:ci
+          format: json
+          output: trivy-image.json
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+      - name: Preserve scan findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-image-${{ github.run_id }}
+          path: trivy-image.json
+          if-no-files-found: ignore
+          retention-days: 30
