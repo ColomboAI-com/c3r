@@ -1,10 +1,31 @@
-# Cloud Run staging decision (not a deployment record)
+# Cloud Run staging decision and resource record (not a service deployment)
 
 C3R's selected standalone hostname strategy is the Google-managed HTTPS URL that
 Cloud Run assigns to a service. A custom domain is optional. **No C3R Cloud Run
 service has been deployed**, so this document does not claim a URL, live model route,
 or completed canary. The first deployment must require IAM authentication; making
 it public is a separate release action after qualification.
+
+On 2026-09-23, the `columboai-frontend` project received a dedicated
+`c3r-staging-runtime` service account with no user-managed keys or project roles,
+and a private, immutable-tag Docker repository at
+`us-central1-docker.pkg.dev/columboai-frontend/c3r-staging`. Its repository IAM
+policy has no public binding; Google-managed encryption is reported. Cloud Build
+`b25dcb33-5553-4c6d-bc88-1541bfb299bc` built the initial runtime-only source
+and pushed digest `sha256:14b88f22a839fc123d639e3a96c29f3b2242ee443174fedd637665d64a872a2f`.
+That first image predates the disabled staging host and has **not** been deployed.
+The `.gcloudignore` upload manifest was checked to include only the Dockerfile,
+`.dockerignore`, and `c3r/` Python source; no data, evidence, papers, or Git metadata.
+Registry creation and image publication do not verify service behavior, storage,
+retention, alerting, or release readiness.
+
+`c3r.staging_host:build` is an intentionally fixed-disabled, recommendation-only
+boundary smoke host. It cannot be turned into a production decision service by
+environment flags, performs no external effects or provider calls, and retains no
+trace rows. An authenticated private deployment can use it to exercise ingress,
+IAM/TLS, startup, monitoring, and rollback, but **not** to collect empirical data
+or qualify C3R decisions. A separately reviewed host with measured pre-decision
+estimates, durable governed storage, and approved source registry is required later.
 
 ## Preconditions before creating a service
 
@@ -68,3 +89,4 @@ Cloud Run references: [HTTPS service URL and invoking services](https://docs.clo
 [IAM service authentication](https://docs.cloud.google.com/run/docs/authenticating/overview),
 [public versus authenticated deployment](https://docs.cloud.google.com/run/docs/deploying),
 and [container listening contract](https://docs.cloud.google.com/run/docs/container-contract).
+
