@@ -32,7 +32,7 @@ verify independence in practice, complete the review, or authorize launch.
 
 - [C3R PR #2](https://github.com/ColomboAI-com/c3r/pull/2) is a draft with the
   tested standalone controller and fail-closed service boundary.
-- [CI run 64](https://github.com/ColomboAI-com/c3r/actions/runs/35876574369)
+- [CI run 70](https://github.com/ColomboAI-com/c3r/actions/runs/35879315503)
   built and smoke-imported the digest-pinned image and produced a Trivy report
   with zero HIGH/CRITICAL findings. This does not cover lower severities or
   deployment controls.
@@ -42,9 +42,17 @@ verify independence in practice, complete the review, or authorize launch.
   cannot verify encrypted deployment storage, backup deletion, access auditing,
   independent anchoring, alerting, or task outcomes. Reproduce with
   `python scripts/run_trace_control_dry_run.py`.
+- [Private staging evidence](../evidence/staging-deployment-v1/report.json)
+  shows a fixed-disabled Cloud Run boundary, IAM and token checks, a service-
+  specific 5xx alert rule, and revision traffic rollback. This is not a live
+  C3R decision route or evidence of governed trace storage, alert delivery,
+  backup deletion, independent anchoring, or canaries.
 - [Launch issue #3](https://github.com/ColomboAI-com/c3r/issues/3) lists the
-  unclosed production gates. No C3R Cloud Run service or governed live trace
-  collection exists at this writing.
+  unclosed production gates. Governed live trace collection remains off.
+
+The public, fixture-only dry-run and handoff links were sent to Swapnil from
+`contact@colomboai.com` on 2026-09-23. No trace rows, credentials, or private
+artifacts were sent. His review response and gate-by-gate sign-off are pending.
 
 The reviewer should record findings, evidence links and hashes, date, scope,
 and a clear **approve / reject / needs changes** decision for each gate. A

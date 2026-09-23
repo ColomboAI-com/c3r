@@ -1,10 +1,12 @@
-# Cloud Run staging decision and resource record (not a service deployment)
+# Cloud Run private staging deployment (fixed-disabled)
 
 C3R's selected standalone hostname strategy is the Google-managed HTTPS URL that
-Cloud Run assigns to a service. A custom domain is optional. **No C3R Cloud Run
-service has been deployed**, so this document does not claim a URL, live model route,
-or completed canary. The first deployment must require IAM authentication; making
-it public is a separate release action after qualification.
+Cloud Run assigns to a service. A custom domain is optional. A **private,
+fixed-disabled staging boundary** is deployed at
+`https://c3r-staging-795563500003.us-central1.run.app`. It is not a live model
+route, governed trace collector, canary, or production service. Cloud Run IAM
+authentication is required; public access is a separate release action after
+qualification.
 
 On 2026-09-23, the `columboai-frontend` project received a dedicated
 `c3r-staging-runtime` service account with no user-managed keys or project roles,
@@ -19,6 +21,19 @@ The `.gcloudignore` upload manifest was checked to include only the Dockerfile,
 Registry creation and image publication do not verify service behavior, storage,
 retention, alerting, or release readiness.
 
+Cloud Build `d70f1263-a60e-489c-958f-36436ab2875a` published the fixed-disabled
+staging host at digest
+`sha256:60d4daf25d879c41892a3b1b5fc84638d7289ca75a191059858dd183f1aa1209`.
+Cloud Run service `c3r-staging` in `us-central1` runs this digest under the
+dedicated service account, with one maximum instance, zero minimum instances,
+and no explicit public invoker binding. Its two distinct tokens are pinned
+Secret Manager references; values are not in Git or this record. Direct
+unauthenticated `/health` returned 403, IAM-authenticated `/health` returned
+200, an IAM-only decision request returned 401, and a request with both IAM
+and C3R token returned `C3R_DISABLED`, no selected action, and no effect.
+The [deployment evidence](../evidence/staging-deployment-v1/report.json) records
+these checks without credentials or request bodies.
+
 `c3r.staging_host:build` is an intentionally fixed-disabled, recommendation-only
 boundary smoke host. It cannot be turned into a production decision service by
 environment flags, performs no external effects or provider calls, and retains no
@@ -27,12 +42,14 @@ IAM/TLS, startup, monitoring, and rollback, but **not** to collect empirical dat
 or qualify C3R decisions. A separately reviewed host with measured pre-decision
 estimates, durable governed storage, and approved source registry is required later.
 
-## Preconditions before creating a service
+## Controls still required before live collection or promotion
 
 1. Wilfried Kouadio (`@wilkont`) is the interim deployment/release owner and
    confirmed interim on-call/rollback operator in the
    [internal-task policy](internal-task-trace-policy.md). Verify the work-email
-   alert route, acknowledgement and rollback access before hosting traffic.
+   alert route and acknowledgement before live internal-task traffic. A C3R-only
+   Cloud Monitoring email channel and 5xx policy now exist, but delivery and
+   human acknowledgement are unverified.
 2. Implement the approved internal-task trace policy: source registry, field
    allowlist, redaction tests, 30-day private deletion including backups, access
    audit, and publication review. The approved scope is only redacted telemetry
@@ -51,9 +68,8 @@ estimates, durable governed storage, and approved source registry is required la
    size, request rate, concurrency, and upstream wait time. Local tests cover these
    boundaries, backend failure, and local server composition. GitHub CI has
    built and HIGH/CRITICAL-scanned the digest-pinned staging image with zero
-   findings in [run 56](https://github.com/ColomboAI-com/c3r/actions/runs/35870568965),
-   but no image has been published to a registry or deployed to Cloud Run.
-   Docker Desktop was unavailable during the local check.
+   findings in [run 70](https://github.com/ColomboAI-com/c3r/actions/runs/35879315503).
+   This scan does not qualify lower severities or deployed controls.
    Bind this ingress only behind Cloud Run's IAM/TLS boundary at staging, with
    tokens from Secret Manager. Do not publish it as a raw unauthenticated port.
 6. Establish a private, authenticated service-to-service route to the GPU model;
@@ -66,10 +82,20 @@ estimate source uses measured, pre-decision values. The container supplies **no*
 sample catalog, constant estimates, data collection, or production credentials.
 `C3R_CLIENT_TOKEN` and `C3R_BACKEND_TOKEN` are distinct mandatory secrets of at
 least 32 characters; `PORT` defaults to 8080 and `C3R_BACKEND_PORT` to 8081.
-The trusted host module must be included in a derived private image or approved
-runtime package. This is packaging, not proof that a calibrated host or secure
-storage exists. Registry publication, durable ledger storage, secret rotation, and
-end-to-end Cloud Run tests remain necessary before staging traffic.
+The currently deployed host is `c3r.staging_host:build`, deliberately
+fixed-disabled. A later trusted decision host must be separately reviewed and
+deployed. Registry publication and boundary checks are complete only for the
+disabled host; durable ledger storage, secret rotation, and live decision tests
+remain necessary before governed internal-task traffic.
+
+On 2026-09-23 a second, equivalent disabled revision (`c3r-staging-drill1`)
+was deployed, then traffic was explicitly restored 100% to the original
+`c3r-staging-00001-zrj` revision. IAM-authenticated `/health` returned 200
+after rollback. This proves revision traffic rollback for the disabled staging
+host, not incident response timing or a production rollback. Cloud Monitoring
+policy `11003571770572095050` watches this service's 5xx request count and
+routes to Wilfried's work-email channel, but delivery and acknowledgement have
+not been exercised.
 
 ## Staged promotion
 

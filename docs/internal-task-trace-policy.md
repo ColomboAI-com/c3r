@@ -12,7 +12,8 @@ Those controls must be verified before hosted traffic.
 **Named independent reviewer:** Swapnil Pawar, designated by Wilfried on
 2026-09-23 for internal-task labels and any proposed public de-identified rows.
 He accepted by work email on 2026-09-23 and reported no conflict of interest.
-Access to a non-sensitive dry run, independent control review, and actual sign-off
+The non-sensitive fixture-only dry-run link was sent to him from ColomboAI's
+work mailbox on 2026-09-23. Independent control review and actual sign-off
 remain outstanding. Acceptance does not activate collection or authorize publication.
 
 This policy resolves the owner and data-use choices for the *controlled internal
@@ -74,10 +75,11 @@ This written approval **does not turn collection on**. Before the first live tra
 the owner must record the exact task-source registry, permitted-field schema,
 redaction/leakage test results, IAM grants, encrypted storage location, daily
 30-day deletion job and backup purge proof, access audit, independent ledger-head
-anchor, on-call/rollback contact, and a private staging deployment. Swapnil
-Pawar or another subsequently approved independent reviewer must accept the
-assignment and verify these controls against an intentionally non-sensitive
-dry run.
+anchor, on-call/rollback contact, and a private staging deployment. A
+fixed-disabled private Cloud Run staging host now exists, but it has no durable
+trace storage or decision authority. Swapnil Pawar or another subsequently
+approved independent reviewer must verify the complete controls against an
+intentionally non-sensitive dry run.
 
 The reference [`GovernedTraceStore`](../c3r/telemetry/governed_store.py) enforces an
 attested source/task allowlist, a bounded token/numeric trace schema, a local 30-day

@@ -6,7 +6,7 @@ distinguishes tested code, private operational evidence, and public release evid
 
 | Gate | Current evidence | Exit condition |
 | --- | --- | --- |
-| Hosted decision path | `StandaloneController` composes state compilation, inventory-masked hierarchical candidates, optional calibrated Laya, conservative CVoC, independent verification, commit control, fallback, and redacted hash-chain traces. Provider latency/token usage is recorded without granting authority. A host-owned read-only request factory ignores caller policy, budgets, estimates, and approvals. The loopback HTTP boundary has bearer authentication, a global rate limit, aggregate metrics, a body limit, and recommendation-only enforcement. A separate tested ingress allowlists read-only routes, uses distinct client/backend tokens, and fails closed on backend outage. A fail-closed container entrypoint composes both servers only when a trusted host builder and distinct secrets are supplied. GitHub CI builds, smoke-imports, and [HIGH/CRITICAL-scans the digest-pinned staging image](image-security.md) with zero findings in run 56. A transactional SQLite trace sink survives restart and verifies its hash chain. Local integration tests pass. | Calibrated *pre-decision* value/cost estimate source, trusted host composition, registry publication of the scanned image, durable storage placement, independent ledger-head anchoring, TLS/IAM gateway, Google-managed HTTPS service URL, secret rotation, deployment and rollback rehearsal, monitoring/alerts, and live end-to-end traces. No C3R cloud service exists yet. |
+| Hosted decision path | `StandaloneController` composes state compilation, inventory-masked hierarchical candidates, optional calibrated Laya, conservative CVoC, independent verification, commit control, fallback, and redacted hash-chain traces. Provider latency/token usage is recorded without granting authority. A host-owned read-only request factory ignores caller policy, budgets, estimates, and approvals. The loopback HTTP boundary has bearer authentication, a global rate limit, aggregate metrics, a body limit, and recommendation-only enforcement. A separate tested ingress allowlists read-only routes, uses distinct client/backend tokens, and fails closed on backend outage. A fail-closed container entrypoint composes both servers only when a trusted host builder and distinct secrets are supplied. GitHub CI builds, smoke-imports, and [HIGH/CRITICAL-scans the digest-pinned staging image](image-security.md) with zero findings in run 70. A private [fixed-disabled Cloud Run staging host](cloud-run-staging.md) now verifies IAM/TLS ingress, two-token gating, a disabled decision response, a service-specific 5xx alert rule, and revision rollback. It has no decision authority or retained trace rows. | Calibrated *pre-decision* value/cost estimate source, reviewed live decision host, governed durable storage with 30-day deletion including backups, read/export audit and independent ledger-head anchoring, secret rotation, verified alert delivery/acknowledgement, and live end-to-end internal-task traces. The disabled staging host is not a production C3R service. |
 | DeepSeek | Official DeepSeek-V4.1-Flash shards are verified on the GCP GPU host and in a private GCS backup; localhost inference passed a smoke test. A provider bridge passes compiled state to a local OpenAI-compatible adapter and rejects remote transfer of local-only data in tests. | Secure service-to-service route and paired live C3R decision traces. The localhost model is not a public API. |
 | Empirical DecisionMix | Published preview has 144 synthetic records, deterministic splits, and hashes. A [source audit](laya-data-source-audit.md) confirms that Laya-associated typed-decisions examples are also synthetic, not observed C3R outcomes. | Approved trace source, consent/license/data-boundary review, deduplication, immutable split, provenance audit, and empirical dataset publication. Never relabel synthetic data empirical. |
 | C3R Laya | Pinned upstream integration and calibration-aware abstention are tested. The Hugging Face C3R model page is an integration preview without trained weights. | Train a C3R-derived checkpoint on governed training data, fit calibration on held-out data, preserve sealed test set, and publish weights, raw predictions, manifests, hashes, and reproducible metrics. |
@@ -14,7 +14,8 @@ distinguishes tested code, private operational evidence, and public release evid
 | Providers and Colibri | Provider protocol contracts and a non-authoritative Colibri shadow adapter exist. Dedicated `c3r-evals` and `c3r-colibri` repositories exist. Single fixed-prompt credentialed OpenRouter smoke probes now cover Qwen3.8 Flash and Claude Sonnet 4.6 in [c3r-evals PR #1](https://github.com/ColomboAI-com/c3r-evals/pull/1). | Multi-case credentialed provider qualification, paired C3R traces, compatible Colibri instrumentation, actual shadow route traces, offline replay, shadow traffic, read-only and reversible canaries. |
 | Public release | v0.1 alpha repository, papers, collection, model/dataset previews. | Update all cards and launch copy only after the corresponding evidence passes; perform security and dependency review; publish an evidence-matched standalone release. |
 
-The current code path is a **tested reference boundary**, not a production service.
+The current code path is a **tested reference boundary** with a private
+fixed-disabled staging deployment, not a production service.
 An opt-in governed SQLite trace store now validates internal-task source grants,
 rejects unbounded text and private artifact references, and has a tested 30-day local
 purge/checkpoint operation. It does not run a daily scheduler, delete backups, or
@@ -30,9 +31,9 @@ canary evidence are independently reviewed.
 ## Required operator inputs
 
 1. The selected hostname strategy is a Google-managed Cloud Run HTTPS `run.app` URL.
-   It is available only after deployment; private staging must require Cloud Run IAM,
-   and public access is a separate, explicitly approved promotion. A custom domain is
-   optional, not a launch prerequisite.
+   The private fixed-disabled [staging service](cloud-run-staging.md) now has one;
+   it requires Cloud Run IAM, and public access is a separate, explicitly approved
+   promotion. A custom domain is optional, not a launch prerequisite.
 2. A governed trace source with explicit data-use, retention, redaction, and publication
    permissions. The [interim internal-task policy](internal-task-trace-policy.md)
    records these choices, but its technical activation controls are not yet verified.
@@ -52,9 +53,9 @@ canary evidence are independently reviewed.
    reversible canary thresholds and aborts still need verification. A named
    responder is not proof of operational coverage.
 6. Wilfried named Swapnil Pawar as the independent data reviewer on 2026-09-23.
-   Swapnil accepted by work email that day and reported no conflict. A
+   Swapnil accepted by work email that day and reported no conflict. The
    [non-sensitive local fixture dry run](../evidence/trace-control-dry-run-v1/report.json)
-   is available, but access delivery, independent review, and sign-off on
+   was sent to him by work email, but independent review and sign-off on
    labels, deployed controls, and any public rows remain outstanding. Neither the owner
    nor this assistant can substitute for that independent review. The
    [reviewer handoff](independent-review-handoff.md) defines the requested scope
@@ -73,6 +74,7 @@ must not silently widen the data source. Internal-task evidence can qualify the
 controlled task population only; it cannot establish field performance.
 
 No public production claim should be made while any exit condition above is unmet.
-The [Cloud Run staging decision](cloud-run-staging.md) records the selected
-launch-capable URL strategy and the prerequisites that still block deployment.
+The [Cloud Run staging record](cloud-run-staging.md) records the private
+fixed-disabled deployment and the controls still blocking live collection and
+production promotion.
 
