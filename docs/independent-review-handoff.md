@@ -60,7 +60,8 @@ row sign-off; request a dated gate-by-gate finding with evidence references.
   triggered empty-bucket purges, plus a generation-guarded deletion of a
   non-sensitive marker under the purge identity. It does not prove the first
   natural daily run, age-based expired-object or backup deletion,
-  data-access auditing, source governance, or independent anchoring.
+  data-access auditing, source governance, or independent anchoring. A failed-
+  purge alert policy is configured but has not had a delivery drill.
 - [Launch issue #3](https://github.com/ColomboAI-com/c3r/issues/3) lists the
   unclosed production gates. Governed live trace collection remains off.
 

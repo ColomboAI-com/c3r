@@ -1,5 +1,5 @@
 {
-  "as_of_utc": "2026-09-23T16:12:05Z",
+  "as_of_utc": "2026-09-23T16:16:11Z",
   "scope": "private staging control, no trace collection",
   "project": "columboai-frontend",
   "region": "us-central1",
@@ -61,11 +61,21 @@
     "one_off_probe_job_removed": true,
     "trace_collection_enabled": false
   },
+  "failure_alert": {
+    "policy": "projects/columboai-frontend/alertPolicies/16956137431162400006",
+    "metric": "run.googleapis.com/job/completed_execution_count",
+    "scope": "c3r-retention-purge failed executions only",
+    "channel": "existing C3R staging work-email channel",
+    "enabled": true,
+    "policy_configuration_verified": true,
+    "failure_delivery_drill_verified": false
+  },
   "not_verified": [
     "first natural daily scheduled execution",
     "age-based deletion of an expired object",
     "deletion in any independently configured backup or replica",
     "effective inherited IAM and read/export audit",
+    "retention failure alert delivery on a real failed execution",
     "independent ledger anchoring",
     "governed internal-task source and live trace",
     "independent reviewer sign-off"

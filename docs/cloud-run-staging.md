@@ -53,6 +53,9 @@ one-off probe job was removed. It distinguishes these observations from the
 first natural daily run, age-based expiry of real trace rows, deletion from
 independent backups or replicas, effective inherited IAM, and access auditing. Nothing
 about this bucket enables trace collection or production qualification.
+A C3R-only failed-purge alert policy now watches Cloud Run job completion
+results and targets the existing work-email channel. Its configuration was
+read back after creation; a failed-execution delivery drill has not run.
 
 ## Controls still required before live collection or promotion
 
