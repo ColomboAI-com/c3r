@@ -42,11 +42,13 @@ canary evidence are independently reviewed.
    manager rather than committed files.
 4. Colibri deployment owner and an instrumented compatible build that emits native
    route, acceptance, latency, and cost traces without exporting private content.
-5. The user designated ColomboAI's `@wilkont` account as interim accountable
-   deployment, release, and data owner in the
-   [internal-task policy](internal-task-trace-policy.md). The owner still needs a
-   reachable on-call/rollback contact, monitoring, read-only and reversible canary
-   thresholds and aborts. An account designation is not proof of operational coverage.
+5. The user designated Wilfried Kouadio (`@wilkont`) as interim accountable
+   deployment, release, and data owner, and on 2026-09-23 Wilfried confirmed he
+   will be the interim human on-call/rollback operator. The
+   [internal-task policy](internal-task-trace-policy.md) records this. Alert
+   delivery, acknowledgement, rollback access, monitoring, and read-only and
+   reversible canary thresholds and aborts still need verification. A named
+   responder is not proof of operational coverage.
 
 ## Internal-task telemetry authorization
 

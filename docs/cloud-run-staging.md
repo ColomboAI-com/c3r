@@ -8,9 +8,10 @@ it public is a separate release action after qualification.
 
 ## Preconditions before creating a service
 
-1. The user designated ColomboAI's `@wilkont` account as interim deployment and
-   release owner in the [internal-task policy](internal-task-trace-policy.md). Name
-   a reachable on-call and rollback contact before hosting traffic.
+1. Wilfried Kouadio (`@wilkont`) is the interim deployment/release owner and
+   confirmed interim on-call/rollback operator in the
+   [internal-task policy](internal-task-trace-policy.md). Verify the work-email
+   alert route, acknowledgement and rollback access before hosting traffic.
 2. Implement the approved internal-task trace policy: source registry, field
    allowlist, redaction tests, 30-day private deletion including backups, access
    audit, and publication review. The approved scope is only redacted telemetry

@@ -2,9 +2,12 @@
 
 **Effective:** 2026-09-22. **Approval authority:** the user acting for ColomboAI in
 this task. **Accountable interim deployment, release, and data owner:** Wilfried
-Kouadio (`@wilkont`), as identified by the active ColomboAI GCP account. This
-designation does not establish an on-call rota. The owner must nominate a reachable
-operator and rollback contact before a hosted service receives traffic.
+Kouadio (`@wilkont`), as identified by the active ColomboAI GCP account. On
+2026-09-23, Wilfried confirmed that he will serve as the interim human on-call
+and rollback operator via his ColomboAI work identity
+(`wilfried.k@colomboai.com`). This names the responder; it does not prove that
+monitoring, alert delivery, acknowledgement, or rollback access is configured.
+Those controls must be verified before hosted traffic.
 
 This policy resolves the owner and data-use choices for the *controlled internal
 task population only*. It does **not** authorize production traffic or certify
