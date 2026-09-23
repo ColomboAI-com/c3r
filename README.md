@@ -65,7 +65,7 @@ failed verification into success, or directly commit an external effect.
 | Authority boundary | action-bound verifier attestations, expiring single-use approvals, atomic nonce claims |
 | Runtime control | conservative CVoC selection, deterministic `STOP`, cost twin, deliberative contracts, trace schema and optional transactional SQLite hash chain |
 | Operational controls | fail-closed feature flags, tested frontier/open-weight HTTP contracts, Colibri shadow recommendations, canonical trace hash chain |
-| Standalone controller boundary | tested state → candidates → optional Laya → CVoC → independent verifier → recommendation/commit fallback → redacted trace composition; host-owned read-only request factory, data-boundary-aware provider bridge, and authenticated rate-limited loopback HTTP boundary (not publicly deployed) |
+| Standalone controller boundary | tested state → candidates → optional Laya → CVoC → independent verifier → recommendation/commit fallback → redacted trace composition; host-owned read-only request factory, data-boundary-aware provider bridge, and authenticated rate-limited loopback HTTP boundary. A separate private Cloud Run staging host is deliberately fixed-disabled; it is not the decision service or a public launch. |
 
 This compiler is the reviewed vertical slice, not the directive's full Candidate Compiler
 Definition of Done. Rich typed value constraints, per-argument provenance, dominated-branch
@@ -201,3 +201,4 @@ Do not report vulnerabilities in a public issue; follow [`SECURITY.md`](SECURITY
 effects must be completely mediated by an independently configured commit gateway.
 
 Apache License 2.0. See [`LICENSE`](LICENSE). If you use C3R, cite [`CITATION.cff`](CITATION.cff).
+
