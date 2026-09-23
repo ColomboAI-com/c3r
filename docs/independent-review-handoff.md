@@ -1,16 +1,24 @@
 # Independent C3R release review handoff
 
-**Status:** accepted, not reviewed or signed off. Wilfried Kouadio named Swapnil
+**Status:** accepted; fixture-only dry run reviewed; deployment controls and
+release not signed off. Wilfried Kouadio named Swapnil
 Pawar as the independent reviewer on 2026-09-23. Swapnil replied from his
 ColomboAI work mailbox on 2026-09-23 accepting the role, reporting no conflict
 of interest, and requesting access to a non-sensitive dry run. His reply also
 acknowledged that collection and publication remain off. Acceptance does not
-verify independence in practice, complete the review, or authorize launch.
+verify deployment controls or authorize launch.
 On 2026-09-23 he reported in the ColomboAI chat that he marked PR #2 ready for
 review and saw passing checks. The PR had no submitted GitHub review or inline
 review threads when checked afterward, and launch issue #3 had no independent
 findings. Readiness and CI status are not substantive control, label, or public-
 row sign-off; request a dated gate-by-gate finding with evidence references.
+Swapnil's later 2026-09-23 work-email response reviewed the nine local checks
+as clear and explicitly withheld live-collection and publication approval. He
+requested deployed storage/IAM, access audit, deletion including copies,
+independent anchoring, alert/rollback/kill-switch, and eventual live provenance
+and outcome evidence. The [staging packet](reviewer-staging-packet-2026-09-23.md)
+indexes what exists and what remains unavailable without treating the fixture
+finding as deployment sign-off.
 
 ## What the reviewer should decide
 
@@ -77,3 +85,4 @@ complete under the original directive.
 The [review record template](reviewer-signoff-template.md) makes the required
 gate-by-gate decisions and evidence fields explicit; it is not a pre-filled
 approval.
+

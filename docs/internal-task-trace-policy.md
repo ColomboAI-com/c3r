@@ -17,6 +17,9 @@ He accepted by work email on 2026-09-23 and reported no conflict of interest.
 The non-sensitive fixture-only dry-run link was sent to him from ColomboAI's
 work mailbox on 2026-09-23. Independent control review and actual sign-off
 remain outstanding. Acceptance does not activate collection or authorize publication.
+He subsequently reviewed the nine fixture-only local checks as clear, while
+explicitly withholding approval for live collection and publication until the
+deployment-level evidence is inspected. See the [review staging packet](reviewer-staging-packet-2026-09-23.md).
 
 This policy resolves the owner and data-use choices for the *controlled internal
 task population only*. It does **not** authorize production traffic or certify
@@ -112,3 +115,4 @@ one binding for unrelated requests or accept those identifiers from callers.
 No public endpoint, public dataset promotion, model-weight release, or broad access
 is approved by this policy alone. Each requires its own evidence-matched release
 decision. This document is a project governance record, not a legal opinion.
+

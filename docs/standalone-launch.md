@@ -57,11 +57,14 @@ canary evidence are independently reviewed.
 6. Wilfried named Swapnil Pawar as the independent data reviewer on 2026-09-23.
    Swapnil accepted by work email that day and reported no conflict. The
    [non-sensitive local fixture dry run](../evidence/trace-control-dry-run-v1/report.json)
-   was sent to him by work email, but independent review and sign-off on
-   labels, deployed controls, and any public rows remain outstanding. Neither the owner
+   was sent to him by work email. He reviewed its nine local checks as clear
+   but explicitly withheld approval for live collection and publication.
+   Independent review and sign-off on labels, deployed controls, and any
+   public rows remain outstanding. Neither the owner
    nor this assistant can substitute for that independent review. The
-   [reviewer handoff](independent-review-handoff.md) defines the requested scope
-   and evidence without implying approval.
+   [reviewer handoff](independent-review-handoff.md) and
+   [staging packet](reviewer-staging-packet-2026-09-23.md) define the requested
+   scope and available evidence without implying approval.
 
 ## Internal-task telemetry authorization
 
@@ -90,3 +93,4 @@ write traces.
 The same record now includes one successful generation-guarded deletion of a
 non-sensitive marker under the bucket-scoped purge identity. This validates
 the delete API path, not the 28-day retention outcome.
+
