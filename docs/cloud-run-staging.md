@@ -27,9 +27,9 @@ it public is a separate release action after qualification.
    `/v1/decisions`, requires a separate client token for protected routes, replaces
    caller credentials with a distinct backend token, and caps body size, response
    size, request rate, concurrency, and upstream wait time. Local tests cover these
-   boundaries, backend failure, and local server composition; no Cloud Run image or
-   service has been built. Docker Desktop was unavailable during this check, so the
-   image itself has not yet been built or scanned.
+   boundaries, backend failure, and local server composition. GitHub CI has built
+   the staging image, but no image has been published, scanned, or deployed to
+   Cloud Run. Docker Desktop was unavailable during the local check.
    Bind this ingress only behind Cloud Run's IAM/TLS boundary at staging, with
    tokens from Secret Manager. Do not publish it as a raw unauthenticated port.
 6. Establish a private, authenticated service-to-service route to the GPU model;
@@ -44,7 +44,7 @@ sample catalog, constant estimates, data collection, or production credentials.
 least 32 characters; `PORT` defaults to 8080 and `C3R_BACKEND_PORT` to 8081.
 The trusted host module must be included in a derived private image or approved
 runtime package. This is packaging, not proof that a calibrated host or secure
-storage exists. Image build/scan, durable ledger storage, secret rotation, and
+storage exists. A publishable pinned/scanned image, durable ledger storage, secret rotation, and
 end-to-end Cloud Run tests remain necessary before staging traffic.
 
 ## Staged promotion
