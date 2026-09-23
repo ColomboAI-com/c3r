@@ -1,10 +1,8 @@
-FROM python:3.11-slim
+FROM python:3.11-alpine3.24
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
-COPY pyproject.toml README.md LICENSE ./
-COPY c3r ./c3r
-RUN pip install --no-cache-dir . && useradd --create-home --uid 10001 c3r
-USER c3r
+COPY --chown=10001:10001 c3r ./c3r
+USER 10001:10001
 EXPOSE 8080
 CMD ["python", "-m", "c3r.serve"]

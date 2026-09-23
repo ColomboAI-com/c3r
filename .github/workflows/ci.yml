@@ -25,6 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build --pull --tag c3r:ci .
+      - run: docker run --rm c3r:ci python -c 'import c3r.serve'
       - name: Scan image for high and critical vulnerabilities
         uses: aquasecurity/trivy-action@v0.36.0
         with:
