@@ -155,6 +155,12 @@ without presenting generated fixtures as real training evidence. The empirical c
 only when provenance, licensing, held-out integrity, and calibration support are independently
 auditable.
 
+For the first empirical source, ColomboAI approved only C3R-authored internal
+tasks under the [interim trace policy](docs/internal-task-trace-policy.md). It
+sets a 30-day private retention limit and requires independent review before
+any de-identified row is published. Collection remains off until the technical
+controls are verified; this approval does not make the preview empirical.
+
 Required empirical metrics include accuracy, Brier score, ECE, maximum calibration error, NLL,
 selective risk versus coverage, abstention, escalation, p50/p95 latency, throughput, calls avoided,
 and cost per completed task.

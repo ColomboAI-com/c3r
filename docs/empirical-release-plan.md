@@ -17,10 +17,12 @@ prompts, but its own output is not an independent verifier or task-outcome label
 
 The user approved **C3R-controlled internal tasks only** as the present
 training/evaluation source, including redacted telemetry from those tasks in private
-shadow/canary qualification. This does not approve customer, product, Laya-user,
-DeepSeek-user, or Colibri operational logs. Collection remains disabled until a
-recorded source owner, permitted fields, redaction review, retention/deletion rule,
-access policy, and publication scope are in place. The first controlled source is
+shadow/canary qualification. The [interim trace policy](internal-task-trace-policy.md)
+designates `@wilkont` as the accountable ColomboAI account, caps private row-level
+retention at 30 days, and defines restricted publication after review. This does not
+approve customer, product, Laya-user, DeepSeek-user, or Colibri operational logs.
+Collection remains disabled until the policy's technical activation gates are
+implemented and verified. The first controlled source is
 the [five-case local paired replay](controlled-replay.md), which is a pipeline smoke
 test, not an empirical DecisionMix corpus or training/calibration set. Before
 expanding the controlled corpus, record the source owner, task

@@ -1,0 +1,83 @@
+# C3R internal-task trace policy (interim approval)
+
+**Effective:** 2026-09-22. **Approval authority:** the user acting for ColomboAI in
+this task. **Accountable interim deployment, release, and data owner:** Wilfried
+Kouadio (`@wilkont`), as identified by the active ColomboAI GCP account. This
+designation does not establish an on-call rota. The owner must nominate a reachable
+operator and rollback contact before a hosted service receives traffic.
+
+This policy resolves the owner and data-use choices for the *controlled internal
+task population only*. It does **not** authorize production traffic or certify
+the service, checkpoint, or dataset. MC-1 remains excluded from the standalone
+launch scope, not complete under the original directive.
+
+## Source and permitted uses
+
+- Admit only tasks authored and controlled by ColomboAI expressly for C3R
+  qualification, with task ID, authoring owner, creation time, and rights attestation.
+  The operator must reject imported customer, employee-personal, product, MC-1,
+  Colibri operational, Laya-user, and provider-user records.
+- Permit private offline replay, shadow and read-only canary qualification,
+  training, held-out calibration, paired evaluation, and independent safety review
+  on this controlled source. Do not infer representative field performance from it.
+- DeepSeek, Laya, Qwen, or frontier model outputs may be recorded as *model outputs*,
+  never as independently verified task truth. Record model/version and generation
+  provenance. Independently label outcomes and preserve sealed partitions.
+
+## Data minimization and access
+
+- Persist only pseudonymous run/task IDs, state hashes, controlled candidate IDs,
+  route/provider/version, numeric predictions and resource use, authority/verifier
+  results, independently adjudicated outcome labels, and approved opaque artifact
+  references. Keep prompts, completions, free-text reasoning, personal identifiers,
+  credentials, URLs containing tokens, and source documents out of the trace store.
+- Redaction and an allowlist schema must reject unexpected fields before a trace is
+  written. Review a sample and run leakage tests before enabling each new task source.
+- Keep private traces encrypted in ColomboAI-controlled storage with least-privilege
+  access limited to the owner and named C3R operators. Audit reads and exports. Do
+  not put trace data or access credentials in Git, a public Hugging Face repository,
+  or chat.
+
+## Retention, deletion, and publication
+
+- Private row-level redacted traces: **30 days maximum** from collection. The
+  operator must run and verify deletion at least daily, including replicas and
+  backups. No persistent raw prompt/response capture is authorized. A legal hold
+  or longer retention requires a new explicit approval before collection.
+- Public release may contain reviewed aggregates, metric definitions, source and
+  split manifests, code, hashes, and independently reviewed *de-identified rows*
+  derived solely from the approved internal tasks. Remove task-specific private
+  content and opaque private artifact references. The owner must approve a
+  publication manifest and a second reviewer must sign off on leakage and rights
+  checks before publication. Public releases may persist indefinitely and cannot
+  reliably be recalled; publishing is a separate, irreversible gate.
+- Training and calibration data must have frozen, contamination-checked partitions.
+  Keep sealed test rows private until evaluation is finalized; publication afterward
+  still requires the preceding row-level review. Report the controlled population
+  and limitations in every model/dataset card and launch claim.
+- On revocation or policy breach, stop collection immediately, quarantine exports,
+  preserve a minimal incident audit record, and delete affected private data under
+  the approved retention/deletion procedure.
+
+## Activation gates
+
+This written approval **does not turn collection on**. Before the first live trace,
+the owner must record the exact task-source registry, permitted-field schema,
+redaction/leakage test results, IAM grants, encrypted storage location, daily
+30-day deletion job and backup purge proof, access audit, independent ledger-head
+anchor, on-call/rollback contact, and a private staging deployment. A reviewer
+must verify these controls against an intentionally non-sensitive dry run.
+
+The reference [`GovernedTraceStore`](../c3r/telemetry/governed_store.py) enforces an
+attested source/task allowlist, a bounded token/numeric trace schema, a local 30-day
+purge operation, tamper checks, and a post-purge chain checkpoint in tests. It
+deliberately admits no artifact references. The deployment must still schedule and
+audit that purge daily, remove expired backup copies, encrypt and restrict the
+storage, anchor the ledger head independently, and prove redaction on the exact
+internal-task source. Token-shape checks cannot detect private names encoded in
+identifier-like strings; source-specific allowlists and human leakage review remain
+mandatory. A library method is not evidence these operations ran.
+
+No public endpoint, public dataset promotion, model-weight release, or broad access
+is approved by this policy alone. Each requires its own evidence-matched release
+decision. This document is a project governance record, not a legal opinion.

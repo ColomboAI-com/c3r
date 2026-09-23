@@ -8,23 +8,35 @@ it public is a separate release action after qualification.
 
 ## Preconditions before creating a service
 
-1. Name an accountable deployment/release owner and an on-call/rollback contact.
-2. Approve an internal-task trace policy: source owner, permitted fields, redaction
-   tests, retention/deletion, access, and public-artifact scope. The current user
-   authorization allows only redacted telemetry from C3R-controlled internal tasks
-   in private shadow/canary tests; it excludes customer and product traffic.
+1. The user designated ColomboAI's `@wilkont` account as interim deployment and
+   release owner in the [internal-task policy](internal-task-trace-policy.md). Name
+   a reachable on-call and rollback contact before hosting traffic.
+2. Implement the approved internal-task trace policy: source registry, field
+   allowlist, redaction tests, 30-day private deletion including backups, access
+   audit, and publication review. The approved scope is only redacted telemetry
+   from C3R-controlled internal tasks in private shadow/canary tests; it excludes
+   customer and product traffic. Written approval alone does not enable collection.
 3. Supply a calibrated, host-owned *pre-decision* estimate source. Example or
    constant values must not be presented as measured production CVoC inputs.
 4. Add a durable trace store, independent ledger-head anchor, backup and deletion
    procedure, monitoring, alert thresholds, request budget, and a kill switch.
-5. Package a trusted ingress adapter. Cloud Run requires the ingress container to
-   listen on `0.0.0.0:$PORT`, while `C3RHTTPServer` deliberately binds only to
-   loopback. Do not loosen that invariant merely to make a container start. An
-   authenticated ingress must forward to the loopback boundary without trusting
-   caller-supplied policy, estimates, verification, or approvals.
+5. Package the tested `C3RIngressServer` with the loopback `C3RHTTPServer` in one
+   container. The ingress can listen on `0.0.0.0:$PORT`, while the backend retains
+   its loopback-only invariant. It allowlists `/health`, `/metrics`, and
+   `/v1/decisions`, requires a separate client token for protected routes, replaces
+   caller credentials with a distinct backend token, and caps body size, response
+   size, request rate, concurrency, and upstream wait time. Local tests cover these
+   boundaries and backend failure; no Cloud Run image or service has been built.
+   Bind this ingress only behind Cloud Run's IAM/TLS boundary at staging, with
+   tokens from Secret Manager. Do not publish it as a raw unauthenticated port.
 6. Establish a private, authenticated service-to-service route to the GPU model;
    never publish the model's localhost inference port. Verify the model checkpoint
    backup before any GPU VM lifecycle change.
+
+The ingress code is a transport boundary, not a deployment composition or a
+production authorization system. A container entrypoint, host-owned measured
+estimates, durable ledger storage, secret rotation, and end-to-end Cloud Run tests
+remain necessary before staging traffic.
 
 ## Staged promotion
 
