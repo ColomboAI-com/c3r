@@ -12,7 +12,10 @@ copies only the stdlib-based `c3r` package. It does not run `pip install` or
 retain the vulnerable `jaraco.context` and `wheel` packaging packages. The
 intermediate [run 50](https://github.com/ColomboAI-com/c3r/actions/runs/35869194641)
 had zero HIGH/CRITICAL Alpine OS findings but two HIGH Python packaging
-findings, so the removal still requires scan verification. The image runs as
+findings. [Run 52](https://github.com/ColomboAI-com/c3r/actions/runs/35869500670)
+showed that uninstalling those names alone did not remove copies vendored
+inside `setuptools`; the runtime therefore removes `setuptools` itself, which
+C3R does not import. This still requires scan verification. The image runs as
 UID/GID 10001 and is smoke-imported in CI before scanning. The HIGH/CRITICAL
 scan continues to fail the image job until a subsequent result shows zero
 findings.
