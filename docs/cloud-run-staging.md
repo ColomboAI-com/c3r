@@ -47,8 +47,11 @@ staging. The bucket is not mounted or granted to `c3r-staging`; the purge job's
 service account has only bucket-scoped list/delete authority. A 28-day lifecycle
 delete rule and daily UTC scheduler are configured, and direct and scheduler-
 triggered empty-bucket purges completed. The [retention staging record](../evidence/private-retention-staging-v1/report.json)
-distinguishes these observations from the first natural daily run, expired
-object/backup deletion, effective inherited IAM, and access auditing. Nothing
+also records a generation-guarded deletion of one non-sensitive marker under
+the purge identity, followed by empty live and all-version listings. The
+one-off probe job was removed. It distinguishes these observations from the
+first natural daily run, age-based expiry of real trace rows, deletion from
+independent backups or replicas, effective inherited IAM, and access auditing. Nothing
 about this bucket enables trace collection or production qualification.
 
 ## Controls still required before live collection or promotion

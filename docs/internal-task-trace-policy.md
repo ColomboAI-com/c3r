@@ -89,7 +89,10 @@ prevention, no versioning or soft-delete retention, and a 28-day lifecycle rule.
 A least-privilege Cloud Run purge job completed both a direct and a scheduler-
 triggered empty-bucket run; a daily UTC schedule is configured. See the
 [staging retention evidence](../evidence/private-retention-staging-v1/report.json).
-This does **not** demonstrate deletion of expired data, backup deletion,
+A subsequent 68-byte, non-sensitive marker was deleted by the purge identity
+with a generation precondition; the live and all-version listings were empty
+afterward. The one-off probe job was removed. This does **not** demonstrate
+age-based deletion of expired data, independently configured backup deletion,
 read/export auditing, independent anchoring, or approved live-source operation.
 The disabled C3R service has no access to the bucket. Collection stays off.
 

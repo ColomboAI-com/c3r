@@ -1,5 +1,5 @@
 {
-  "as_of_utc": "2026-09-23T15:49:33Z",
+  "as_of_utc": "2026-09-23T16:12:05Z",
   "scope": "private staging control, no trace collection",
   "project": "columboai-frontend",
   "region": "us-central1",
@@ -48,10 +48,23 @@
       "trace_collection_enabled": false
     }
   },
+  "scoped_delete_probe": {
+    "object": "control-probes/2026-09-23-delete-probe.txt",
+    "payload": "68-byte non-sensitive marker, not a trace",
+    "generation": "1790179707761698",
+    "job_execution": "c3r-retention-delete-probe-20260923-wnjqb",
+    "execution_result": "completed successfully",
+    "method": "GcsJsonClient listed exactly one object, asserted its generation, deleted with ifGenerationMatch, then asserted an empty live listing",
+    "post_run_live_listing": "empty",
+    "post_run_all_versions_listing": "no objects matched",
+    "soft_deleted_listing": "HTTP 400 because bucket soft-delete policy is disabled",
+    "one_off_probe_job_removed": true,
+    "trace_collection_enabled": false
+  },
   "not_verified": [
     "first natural daily scheduled execution",
-    "deletion of an expired object",
-    "backup and replica deletion under live data",
+    "age-based deletion of an expired object",
+    "deletion in any independently configured backup or replica",
     "effective inherited IAM and read/export audit",
     "independent ledger anchoring",
     "governed internal-task source and live trace",

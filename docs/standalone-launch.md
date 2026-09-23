@@ -86,3 +86,7 @@ triggered empty-bucket purge runs, and configured daily schedule. It is not evid
 expired rows or backups, audited data access, independent ledger anchoring, or
 reviewer approval. The C3R decision service remains fixed-disabled and cannot
 write traces.
+
+The same record now includes one successful generation-guarded deletion of a
+non-sensitive marker under the bucket-scoped purge identity. This validates
+the delete API path, not the 28-day retention outcome.

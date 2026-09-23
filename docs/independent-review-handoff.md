@@ -6,6 +6,11 @@ ColomboAI work mailbox on 2026-09-23 accepting the role, reporting no conflict
 of interest, and requesting access to a non-sensitive dry run. His reply also
 acknowledged that collection and publication remain off. Acceptance does not
 verify independence in practice, complete the review, or authorize launch.
+On 2026-09-23 he reported in the ColomboAI chat that he marked PR #2 ready for
+review and saw passing checks. The PR had no submitted GitHub review or inline
+review threads when checked afterward, and launch issue #3 had no independent
+findings. Readiness and CI status are not substantive control, label, or public-
+row sign-off; request a dated gate-by-gate finding with evidence references.
 
 ## What the reviewer should decide
 
@@ -52,8 +57,9 @@ verify independence in practice, complete the review, or authorize launch.
 - [Private retention staging evidence](../evidence/private-retention-staging-v1/report.json)
   records an empty dedicated bucket, restricted purge identity, 28-day lifecycle
   backstop, configured daily schedule, and successful direct and scheduler-
-  triggered empty-bucket purges. It does not prove the first natural daily run,
-  expired-object or backup deletion,
+  triggered empty-bucket purges, plus a generation-guarded deletion of a
+  non-sensitive marker under the purge identity. It does not prove the first
+  natural daily run, age-based expired-object or backup deletion,
   data-access auditing, source governance, or independent anchoring.
 - [Launch issue #3](https://github.com/ColomboAI-com/c3r/issues/3) lists the
   unclosed production gates. Governed live trace collection remains off.
