@@ -42,6 +42,15 @@ IAM/TLS, startup, monitoring, and rollback, but **not** to collect empirical dat
 or qualify C3R decisions. A separately reviewed host with measured pre-decision
 estimates, durable governed storage, and approved source registry is required later.
 
+An independent, empty C3R trace bucket and retention purge job now exist in
+staging. The bucket is not mounted or granted to `c3r-staging`; the purge job's
+service account has only bucket-scoped list/delete authority. A 28-day lifecycle
+delete rule and daily UTC scheduler are configured, and one manual empty-bucket
+purge completed. The [retention staging record](../evidence/private-retention-staging-v1/report.json)
+distinguishes these observations from unverified scheduled execution, expired
+object/backup deletion, effective inherited IAM, and access auditing. Nothing
+about this bucket enables trace collection or production qualification.
+
 ## Controls still required before live collection or promotion
 
 1. Wilfried Kouadio (`@wilkont`) is the interim deployment/release owner and
@@ -122,4 +131,3 @@ Cloud Run references: [HTTPS service URL and invoking services](https://docs.clo
 [IAM service authentication](https://docs.cloud.google.com/run/docs/authenticating/overview),
 [public versus authenticated deployment](https://docs.cloud.google.com/run/docs/deploying),
 and [container listening contract](https://docs.cloud.google.com/run/docs/container-contract).
-

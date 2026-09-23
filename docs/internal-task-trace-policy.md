@@ -83,6 +83,15 @@ trace storage or decision authority. Swapnil Pawar or another subsequently
 approved independent reviewer must verify the complete controls against an
 intentionally non-sensitive dry run.
 
+On 2026-09-23 a separate empty C3R-only staging bucket and 28-day deletion
+backstops were provisioned. The bucket has uniform access, public-access
+prevention, no versioning or soft-delete retention, and a 28-day lifecycle rule.
+A least-privilege Cloud Run purge job completed one empty-bucket run; a daily UTC
+scheduler was configured. See the [staging retention evidence](../evidence/private-retention-staging-v1/report.json).
+This does **not** demonstrate deletion of expired data, backup deletion,
+read/export auditing, independent anchoring, or approved live-source operation.
+The disabled C3R service has no access to the bucket. Collection stays off.
+
 The reference [`GovernedTraceStore`](../c3r/telemetry/governed_store.py) enforces an
 attested source/task allowlist, a bounded token/numeric trace schema, a local 30-day
 purge operation, tamper checks, and a post-purge chain checkpoint in tests. It
@@ -99,4 +108,3 @@ one binding for unrelated requests or accept those identifiers from callers.
 No public endpoint, public dataset promotion, model-weight release, or broad access
 is approved by this policy alone. Each requires its own evidence-matched release
 decision. This document is a project governance record, not a legal opinion.
-
