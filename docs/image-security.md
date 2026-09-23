@@ -17,9 +17,13 @@ showed that uninstalling those names alone did not remove copies vendored
 inside `setuptools`; the runtime therefore removes `setuptools` itself, which
 C3R does not import. This still requires scan verification. The image runs as
 UID/GID 10001 and is smoke-imported in CI before scanning. The HIGH/CRITICAL
-scan continues to fail the image job until a subsequent result shows zero
-findings.
+scan failed closed until [run 54](https://github.com/ColomboAI-com/c3r/actions/runs/35869921657)
+built and smoke-imported the image and reported zero HIGH/CRITICAL findings
+for both Alpine and Python packages. The base image is now pinned to the exact
+digest resolved in that successful build. A follow-up run with Trivy v0.74.0
+must still confirm the pinned image; lower-severity findings have not been
+triaged in this HIGH/CRITICAL-only report.
 
-Even a clean scan is only one security gate. A production image still needs a
-digest pin, registry publication, signature/SBOM, deployment IAM and network
+Even a clean scan is only one security gate. A production image still needs
+registry publication, signature/SBOM, deployment IAM and network
 review, and the live safety qualification in `standalone-launch.md`.

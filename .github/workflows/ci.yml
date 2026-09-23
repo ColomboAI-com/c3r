@@ -29,6 +29,7 @@ jobs:
       - name: Scan image for high and critical vulnerabilities
         uses: aquasecurity/trivy-action@v0.36.0
         with:
+          version: v0.74.0
           image-ref: c3r:ci
           format: json
           output: trivy-image.json
