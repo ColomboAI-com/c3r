@@ -49,9 +49,10 @@ canary evidence are independently reviewed.
    delivery, acknowledgement, rollback access, monitoring, and read-only and
    reversible canary thresholds and aborts still need verification. A named
    responder is not proof of operational coverage.
-6. Wilfried has said he will name a second independent data reviewer; no reviewer
-   has been identified or signed off yet. Neither the owner nor this assistant
-   can substitute for that independent review of labels and public rows.
+6. Wilfried named Swapnil Pawar as the independent data reviewer on 2026-09-23.
+   His acceptance, access route, conflict-of-interest check, and sign-off on
+   labels, controls, and any public rows remain outstanding. Neither the owner
+   nor this assistant can substitute for that independent review.
 
 ## Internal-task telemetry authorization
 

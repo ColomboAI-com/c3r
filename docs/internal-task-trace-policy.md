@@ -9,6 +9,12 @@ and rollback operator via his ColomboAI work identity
 monitoring, alert delivery, acknowledgement, or rollback access is configured.
 Those controls must be verified before hosted traffic.
 
+**Named independent reviewer:** Swapnil Pawar, designated by Wilfried on
+2026-09-23 for internal-task labels and any proposed public de-identified rows.
+His acceptance, access route, conflict-of-interest check, and actual review or
+sign-off have not been evidenced. Naming him does not activate collection or
+authorize publication.
+
 This policy resolves the owner and data-use choices for the *controlled internal
 task population only*. It does **not** authorize production traffic or certify
 the service, checkpoint, or dataset. MC-1 remains excluded from the standalone
@@ -68,8 +74,10 @@ This written approval **does not turn collection on**. Before the first live tra
 the owner must record the exact task-source registry, permitted-field schema,
 redaction/leakage test results, IAM grants, encrypted storage location, daily
 30-day deletion job and backup purge proof, access audit, independent ledger-head
-anchor, on-call/rollback contact, and a private staging deployment. A reviewer
-must verify these controls against an intentionally non-sensitive dry run.
+anchor, on-call/rollback contact, and a private staging deployment. Swapnil
+Pawar or another subsequently approved independent reviewer must accept the
+assignment and verify these controls against an intentionally non-sensitive
+dry run.
 
 The reference [`GovernedTraceStore`](../c3r/telemetry/governed_store.py) enforces an
 attested source/task allowlist, a bounded token/numeric trace schema, a local 30-day
