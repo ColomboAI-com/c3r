@@ -52,8 +52,10 @@ canary evidence are independently reviewed.
    reversible canary thresholds and aborts still need verification. A named
    responder is not proof of operational coverage.
 6. Wilfried named Swapnil Pawar as the independent data reviewer on 2026-09-23.
-   His acceptance, access route, conflict-of-interest check, and sign-off on
-   labels, controls, and any public rows remain outstanding. Neither the owner
+   Swapnil accepted by work email that day and reported no conflict. A
+   [non-sensitive local fixture dry run](../evidence/trace-control-dry-run-v1/report.json)
+   is available, but access delivery, independent review, and sign-off on
+   labels, deployed controls, and any public rows remain outstanding. Neither the owner
    nor this assistant can substitute for that independent review. The
    [reviewer handoff](independent-review-handoff.md) defines the requested scope
    and evidence without implying approval.

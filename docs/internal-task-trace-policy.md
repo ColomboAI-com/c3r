@@ -11,9 +11,9 @@ Those controls must be verified before hosted traffic.
 
 **Named independent reviewer:** Swapnil Pawar, designated by Wilfried on
 2026-09-23 for internal-task labels and any proposed public de-identified rows.
-His acceptance, access route, conflict-of-interest check, and actual review or
-sign-off have not been evidenced. Naming him does not activate collection or
-authorize publication.
+He accepted by work email on 2026-09-23 and reported no conflict of interest.
+Access to a non-sensitive dry run, independent control review, and actual sign-off
+remain outstanding. Acceptance does not activate collection or authorize publication.
 
 This policy resolves the owner and data-use choices for the *controlled internal
 task population only*. It does **not** authorize production traffic or certify
@@ -95,3 +95,4 @@ one binding for unrelated requests or accept those identifiers from callers.
 No public endpoint, public dataset promotion, model-weight release, or broad access
 is approved by this policy alone. Each requires its own evidence-matched release
 decision. This document is a project governance record, not a legal opinion.
+
