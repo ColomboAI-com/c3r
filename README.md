@@ -20,6 +20,13 @@ fast path with calibration-gated abstention, and a reproducible DecisionMix v1 s
 It is a research alpha: the controller is runnable and tested; fine-tuned weights and empirical
 production calibration remain release gates, not implied claims.
 
+> **Launch status:** The standalone decision service and governed trace collection
+> are not enabled for public use. The independent [PR #2 review](https://github.com/ColomboAI-com/c3r/pull/2#pullrequestreview-5293835066)
+> requests changes. A real cloud storage audit probe and the first natural
+> empty-bucket purge run are recorded for reviewer inspection, but they do not
+> establish deletion of aged traces or backups, trained weights, calibration,
+> safety results, or canary evidence. See the [reviewer packet](docs/reviewer-staging-packet-2026-09-23.md).
+
 ### Default language model
 
 C3R's default **deliberative** language model is
