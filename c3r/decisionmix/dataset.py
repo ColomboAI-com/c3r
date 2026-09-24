@@ -86,11 +86,13 @@ class DecisionMixBuilder:
 
     def add(self, record: DecisionMixRecord) -> str:
         record.validate()
+        # Upstream benchmark test examples belong in a separate, sealed evaluation
+        # harness; re-hashing their IDs must never turn them into DecisionMix rows.
+        if record.provenance.source_partition == "benchmark_test":
+            raise ValueError("benchmark test records cannot enter DecisionMix")
         assigned = deterministic_split(record.record_id, seed=self._split_seed)
         if record.record_id in self._record_ids:
             raise ValueError(f"duplicate record_id: {record.record_id}")
-        if record.provenance.source_partition == "benchmark_test" and assigned == "train":
-            raise ValueError("benchmark test answers cannot enter the training split")
         self._record_ids.add(record.record_id)
         self._records[assigned].append(record)
         return assigned

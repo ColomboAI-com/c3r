@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass
+from threading import Lock
 
 from .trace import DecisionTrace
 
@@ -24,33 +25,40 @@ def _record_hash(previous_hash: str, canonical_json: str) -> str:
     ).hexdigest()
 
 
+def canonical_trace_json(trace: DecisionTrace) -> str:
+    return json.dumps(
+        asdict(trace),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    )
+
+
 class TraceLedger:
     def __init__(self, records: tuple[LedgerRecord, ...] = ()) -> None:
         if records and not self.verify(records):
             raise ValueError("trace ledger hash chain is invalid")
         self._records = list(records)
+        self._lock = Lock()
 
     @property
     def records(self) -> tuple[LedgerRecord, ...]:
-        return tuple(self._records)
+        with self._lock:
+            return tuple(self._records)
 
     def append(self, trace: DecisionTrace) -> LedgerRecord:
-        canonical = json.dumps(
-            asdict(trace),
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-            allow_nan=False,
-        )
-        previous = self._records[-1].record_hash if self._records else _GENESIS_HASH
-        record = LedgerRecord(previous, _record_hash(previous, canonical), canonical)
-        self._records.append(record)
-        return record
+        canonical = canonical_trace_json(trace)
+        with self._lock:
+            previous = self._records[-1].record_hash if self._records else _GENESIS_HASH
+            record = LedgerRecord(previous, _record_hash(previous, canonical), canonical)
+            self._records.append(record)
+            return record
 
     def to_jsonl(self) -> str:
         return "\n".join(
             json.dumps(asdict(record), sort_keys=True, separators=(",", ":"))
-            for record in self._records
+            for record in self.records
         )
 
     @classmethod

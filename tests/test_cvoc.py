@@ -37,7 +37,18 @@ class CvocControllerTests(unittest.TestCase):
         self.assertIsNone(decision.selected)
         self.assertEqual(decision.fallback, "STOP")
 
+    def test_invalid_or_negative_cost_estimates_fail_closed(self) -> None:
+        candidate = ActionCandidate("local", ActionFamily.LOCAL_MODEL, RiskClass.READ_ONLY, 1.0)
+        for estimate in (
+            ValueEstimate(float("nan"), 0.0, 0.0, 0.0),
+            ValueEstimate(1.0, -1.0, 0.0, 0.0),
+            ValueEstimate(1.0, 0.0, float("inf"), 0.0),
+        ):
+            with self.subTest(estimate=estimate):
+                decision = RobustCvocController().select((candidate,), {"local": estimate})
+                self.assertIsNone(decision.selected)
+                self.assertEqual(decision.fallback, ActionFamily.STOP)
+
 
 if __name__ == "__main__":
     unittest.main()
-

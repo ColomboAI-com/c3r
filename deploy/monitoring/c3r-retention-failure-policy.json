@@ -1,0 +1,32 @@
+{
+  "displayName": "C3R staging retention purge failure",
+  "combiner": "OR",
+  "enabled": true,
+  "conditions": [
+    {
+      "displayName": "c3r-retention-purge failed execution",
+      "conditionThreshold": {
+        "filter": "metric.type=\"run.googleapis.com/job/completed_execution_count\" AND resource.type=\"cloud_run_job\" AND resource.labels.job_name=\"c3r-retention-purge\" AND metric.labels.result=\"failed\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "60s",
+            "perSeriesAligner": "ALIGN_SUM",
+            "crossSeriesReducer": "REDUCE_SUM"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0,
+        "duration": "0s",
+        "trigger": { "count": 1 }
+      }
+    }
+  ],
+  "notificationChannels": [
+    "projects/columboai-frontend/notificationChannels/10331198960910692730"
+  ],
+  "documentation": {
+    "mimeType": "text/markdown",
+    "content": "C3R private staging retention purge failed. Wilfried: keep trace collection disabled, inspect the failed execution and bucket inventory, repair the purge and replay it, then verify no object exceeded the 30-day cap. This policy alone is not proof of daily execution or production readiness."
+  },
+  "alertStrategy": { "autoClose": "604800s" }
+}

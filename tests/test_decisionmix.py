@@ -44,16 +44,16 @@ class DecisionMixTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertIn(first, {"train", "validation", "test"})
 
-    def test_forbids_benchmark_test_answers_in_training(self) -> None:
+    def test_forbids_benchmark_test_answers_in_all_decisionmix_splits(self) -> None:
         builder = DecisionMixBuilder(split_seed="c3r-v1")
-        record_id = next(
-            f"leak-{index}"
-            for index in range(1000)
-            if deterministic_split(f"leak-{index}", seed="c3r-v1") == "train"
-        )
-
-        with self.assertRaisesRegex(ValueError, "benchmark test"):
-            builder.add(record(record_id, source_partition="benchmark_test"))
+        for split in ("train", "validation", "test"):
+            record_id = next(
+                f"leak-{split}-{index}"
+                for index in range(1000)
+                if deterministic_split(f"leak-{split}-{index}", seed="c3r-v1") == split
+            )
+            with self.subTest(split=split), self.assertRaisesRegex(ValueError, "benchmark test"):
+                builder.add(record(record_id, source_partition="benchmark_test"))
 
     def test_rejects_mutable_generator_revision(self) -> None:
         valid = record("mutable")
