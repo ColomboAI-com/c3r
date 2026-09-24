@@ -18,6 +18,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Callable
 
+from .ledger_anchor import LedgerHead, capture_head
 from .trace import DecisionTrace
 from .trace_ledger import LedgerRecord, _record_hash
 
@@ -158,33 +159,57 @@ class GovernedTraceStore:
             ).fetchall()
         return tuple(LedgerRecord(*row) for row in rows)
 
-    def verify(self) -> bool:
+    def _verified_head(self) -> tuple[int, str] | None:
         with self._lock:
             checkpoint, last_collected_at = self._db.execute(
                 "SELECT checkpoint_hash, last_collected_at FROM metadata WHERE id=1"
             ).fetchone()
             rows = self._db.execute(
-                "SELECT run_id, collected_at, previous_hash, record_hash, canonical_json "
-                "FROM records ORDER BY sequence"
+                "SELECT sequence, run_id, collected_at, previous_hash, "
+                "record_hash, canonical_json FROM records ORDER BY sequence"
             ).fetchall()
-        if rows and rows[-1][1] != last_collected_at:
-            return False
+            sequence_row = self._db.execute(
+                "SELECT seq FROM sqlite_sequence WHERE name='records'"
+            ).fetchone()
+        sequence = int(sequence_row[0]) if sequence_row is not None else 0
+        if rows and rows[-1][2] != last_collected_at:
+            return None
+        if rows and rows[-1][0] != sequence:
+            return None
         previous = checkpoint
-        for run_id, collected_at, prior, digest, payload in rows:
+        for _, run_id, collected_at, prior, digest, payload in rows:
             if prior != previous:
-                return False
+                return None
             try:
                 decoded = json.loads(payload)
                 canonical = json.dumps(decoded, sort_keys=True, separators=(",", ":"),
                                        ensure_ascii=False, allow_nan=False)
                 if decoded["trace"]["run_id"] != run_id or decoded["collected_at"] != collected_at:
-                    return False
+                    return None
             except (ValueError, TypeError, KeyError):
-                return False
+                return None
             if canonical != payload or _record_hash(prior, payload) != digest:
-                return False
+                return None
             previous = digest
-        return True
+        return sequence, previous
+
+    def verify(self) -> bool:
+        return self._verified_head() is not None
+
+    def snapshot_head(self, *, policy_version: str) -> LedgerHead:
+        """Capture a verified head for signing outside the trace-writer identity.
+
+        The caller must send this to a separately controlled signer and durable
+        destination. Capturing a head locally is not independent anchoring.
+        """
+        state = self._verified_head()
+        if state is None:
+            raise ValueError("governed trace hash chain is invalid")
+        sequence, record_hash = state
+        return capture_head(
+            sequence=sequence, record_hash=record_hash,
+            policy_version=policy_version, clock=self._clock,
+        )
 
     def append(self, trace: DecisionTrace, *, source_id: str, task_id: str) -> LedgerRecord:
         grant = self._grants.get(source_id)

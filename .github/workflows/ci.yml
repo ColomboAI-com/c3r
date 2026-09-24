@@ -43,3 +43,4 @@ jobs:
           path: trivy-image.json
           if-no-files-found: ignore
           retention-days: 30
+

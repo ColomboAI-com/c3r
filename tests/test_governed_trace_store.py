@@ -1,3 +1,4 @@
+import hmac
 import sqlite3
 import tempfile
 import unittest
@@ -5,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from c3r.telemetry.governed_store import BoundGovernedTraceSink, GovernedTraceStore, SourceGrant
+from c3r.telemetry.ledger_anchor import sign_head, verify_anchor
 from c3r.telemetry.trace import DecisionTrace
 
 
@@ -131,6 +133,49 @@ class GovernedTraceStoreTests(unittest.TestCase):
             store.append(trace(run_id="run_002"), source_id="c3r_internal_001",
                          task_id="task_001")
             self.assertEqual(len(store.records()), 1)
+
+    def test_external_anchor_detects_clean_chain_tail_removal(self):
+        # The test key stands in for a separate signer; it is not deployment evidence.
+        key = b"fixture-only-signer"
+        sign = lambda payload: hmac.digest(key, payload, "sha256")
+        verify = lambda _key_id, payload, signature: hmac.compare_digest(
+            sign(payload), signature
+        )
+        with self.store() as store:
+            store.append(trace(), source_id="c3r_internal_001", task_id="task_001")
+            store.append(trace(run_id="run_002"), source_id="c3r_internal_001",
+                         task_id="task_001")
+            anchored = sign_head(store.snapshot_head(policy_version="fixture-v1"),
+                                 key_id="fixture-only", signer=sign)
+
+        # A writer with DB access can erase a tail and make local replay valid.
+        # The independent prior signature must still reject the altered state.
+        db = sqlite3.connect(self.path)
+        try:
+            db.execute("DELETE FROM records WHERE sequence=2")
+            db.execute("UPDATE sqlite_sequence SET seq=1 WHERE name='records'")
+            db.execute("UPDATE metadata SET last_collected_at=("
+                       "SELECT collected_at FROM records WHERE sequence=1) WHERE id=1")
+            db.commit()
+        finally:
+            db.close()
+        with self.store() as store:
+            self.assertTrue(store.verify())
+            current = store.snapshot_head(policy_version="fixture-v1")
+            self.assertFalse(verify_anchor(anchored, sequence=current.sequence,
+                                           record_hash=current.record_hash,
+                                           verifier=verify))
+
+    def test_head_snapshot_preserves_purged_prefix_checkpoint(self):
+        with self.store(now=NOW - timedelta(days=31)) as store:
+            first = store.append(trace(), source_id="c3r_internal_001", task_id="task_001")
+            before = store.snapshot_head(policy_version="fixture-v1")
+        with self.store(now=NOW) as store:
+            self.assertEqual(store.purge_expired(), 1)
+            after = store.snapshot_head(policy_version="fixture-v1")
+            self.assertEqual(after.sequence, before.sequence)
+            self.assertEqual(after.record_hash, first.record_hash)
+            self.assertEqual(store.records(), ())
 
 
 if __name__ == "__main__":

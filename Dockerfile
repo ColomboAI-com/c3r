@@ -7,3 +7,4 @@ COPY --chown=10001:10001 c3r ./c3r
 USER 10001:10001
 EXPOSE 8080
 CMD ["python", "-m", "c3r.serve"]
+
