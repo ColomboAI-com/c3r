@@ -1,0 +1,10 @@
+# C3R staging build uploads runtime source only. Do not send papers, traces,
+# local evidence, secrets, or repository metadata to Cloud Build.
+**
+!Dockerfile
+!.dockerignore
+!c3r/
+!c3r/**
+**/__pycache__/
+**/*.pyc
+

@@ -20,3 +20,51 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m unittest discover -s tests -v
 
+  image-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --pull --tag c3r:ci .
+      - run: docker run --rm c3r:ci python -c 'import c3r.serve'
+      - name: Scan image for high and critical vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          version: v0.74.0
+          image-ref: c3r:ci
+          format: json
+          output: trivy-image.json
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+      - name: Preserve scan findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-image-${{ github.run_id }}
+          path: trivy-image.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  retention-image-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --pull --file Dockerfile.retention --tag c3r-retention:ci .
+      - run: docker run --rm c3r-retention:ci python -c 'import c3r.retention_job'
+      - name: Scan retention image for high and critical vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          version: v0.74.0
+          image-ref: c3r-retention:ci
+          format: json
+          output: trivy-retention-image.json
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+      - name: Preserve retention scan findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-retention-image-${{ github.run_id }}
+          path: trivy-retention-image.json
+          if-no-files-found: ignore
+          retention-days: 30
+
