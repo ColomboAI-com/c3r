@@ -3,7 +3,6 @@ from dataclasses import replace
 
 from c3r.adapters.providers import ProviderExecutionResult
 from c3r.candidate_compiler import CandidateCompiler
-from c3r.commit_gateway import InMemoryApprovalNonceStore, TrustedCommitGateway
 from c3r.cvoc import RobustCvocController
 from c3r.deliberative.envelope import DeliberativeResult
 from c3r.feature_flags import FeatureFlags
@@ -81,13 +80,6 @@ def controller(
         VerifierPolicy(default_verifier="policy"),
         attestation_key=KEY,
     )
-    gateway = TrustedCommitGateway(
-        trusted_verifier_ids=frozenset({"policy"}),
-        verification_key=KEY,
-        approval_key=b"approval-test-key",
-        policy_version="policy-v1",
-        approval_nonce_store=InMemoryApprovalNonceStore(),
-    )
     runtime = StandaloneController(
         flags=FeatureFlags(
             enabled_requested=enabled,
@@ -98,7 +90,6 @@ def controller(
         candidates=CandidateCompiler(),
         cvoc=RobustCvocController(),
         verifier=verifier,
-        gateway=gateway,
         ledger=ledger,
         executor=executor,
         fast_path=fast_path,
@@ -108,6 +99,13 @@ def controller(
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_executor_configuration_is_rejected_before_any_effect(self) -> None:
+        effects = []
+        with self.assertRaisesRegex(ValueError, "external effects"):
+            controller(executor=effects.append)
+
+        self.assertEqual(effects, [])
+
     def test_verified_recommendation_has_no_effect_and_is_traced(self) -> None:
         runtime, ledger = controller()
         outcome = runtime.run(request())
@@ -120,28 +118,25 @@ class RuntimeTests(unittest.TestCase):
         self.assertNotIn("The record exists", ledger.to_jsonl())
 
     def test_global_disable_stops_before_candidate_or_provider_execution(self) -> None:
-        effects = []
-        runtime, _ = controller(enabled=False, executor=effects.append)
+        runtime, _ = controller(enabled=False)
         outcome = runtime.run(request())
 
         self.assertEqual(outcome.reason, "C3R_DISABLED")
-        self.assertEqual(effects, [])
+        self.assertFalse(runtime.effect_execution_enabled)
 
     def test_missing_provenance_stops_before_any_effect(self) -> None:
-        effects = []
-        runtime, _ = controller(executor=effects.append)
+        runtime, _ = controller()
         outcome = runtime.run(request(provenance=False))
 
         self.assertEqual(outcome.reason, "STATE_UNSAFE_TO_COMPRESS")
-        self.assertEqual(effects, [])
+        self.assertFalse(runtime.effect_execution_enabled)
 
     def test_verifier_rejection_stops_before_commit(self) -> None:
-        effects = []
-        runtime, _ = controller(accepted=False, executor=effects.append)
+        runtime, _ = controller(accepted=False)
         outcome = runtime.run(request())
 
         self.assertEqual(outcome.reason, "VERIFICATION_REJECTED")
-        self.assertEqual(effects, [])
+        self.assertFalse(runtime.effect_execution_enabled)
 
     def test_unavailable_action_family_is_never_compiled(self) -> None:
         runtime, _ = controller()
@@ -153,13 +148,14 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(outcome.reason, "NO_SAFE_ACTION")
         self.assertIsNone(outcome.selected_action_id)
 
-    def test_external_write_requires_independent_approval(self) -> None:
-        effects = []
-        runtime, _ = controller(executor=effects.append)
+    def test_external_write_is_unavailable_to_recommendation_only_controller(self) -> None:
+        runtime, ledger = controller()
         outcome = runtime.run(request(risk=RiskClass.EXTERNAL_WRITE))
 
-        self.assertEqual(outcome.reason, "approval required")
-        self.assertEqual(effects, [])
+        self.assertEqual(outcome.reason, "EFFECT_EXECUTION_UNAVAILABLE")
+        self.assertEqual(outcome.route, "deterministic")
+        self.assertIsNone(outcome.selected_action_id)
+        self.assertTrue(TraceLedger.verify(ledger.records))
 
     def test_uncalibrated_system_one_abstains_into_non_authoritative_deliberation(self) -> None:
         adapter = LayaAdapter(
@@ -176,20 +172,18 @@ class RuntimeTests(unittest.TestCase):
             def deliberate(self, _state):
                 return {"plan": ["inspect"]}
 
-        effects = []
         runtime, _ = controller(
             system_one=True,
             deliberative=True,
             fast_path=fast_path,
             deliberator=Deliberator(),
-            executor=effects.append,
         )
         outcome = runtime.run(request())
 
         self.assertEqual(outcome.route, "deliberative")
         self.assertEqual(outcome.reason, "SYSTEM_ONE_ABSTAINED")
         self.assertIsNone(outcome.selected_action_id)
-        self.assertEqual(effects, [])
+        self.assertFalse(runtime.effect_execution_enabled)
 
     def test_provider_usage_is_recorded_without_granting_authority(self) -> None:
         class Deliberator:
@@ -232,8 +226,7 @@ class RuntimeTests(unittest.TestCase):
                     {"latency_ms": 1.0}, "untrusted-model", "fixture",
                 )
 
-        effects = []
-        runtime, _ = controller(deliberative=True, deliberator=Deliberator(), executor=effects.append)
+        runtime, _ = controller(deliberative=True, deliberator=Deliberator())
         base = request()
         definition = ActionDefinition(
             "reason", ActionFamily.DELIBERATE, "model", "plan", RiskClass.READ_ONLY,
@@ -250,7 +243,7 @@ class RuntimeTests(unittest.TestCase):
         outcome = runtime.run(req)
 
         self.assertEqual(outcome.route, "deliberative")
-        self.assertEqual(effects, [])
+        self.assertFalse(runtime.effect_execution_enabled)
         self.assertEqual(outcome.deliberation.requested_actions, ("delete all records",))
 
     def test_provider_outage_falls_back_without_effect(self) -> None:
@@ -258,8 +251,7 @@ class RuntimeTests(unittest.TestCase):
             def deliberate(self, _state):
                 raise OSError("provider unavailable")
 
-        effects = []
-        runtime, _ = controller(deliberative=True, deliberator=Deliberator(), executor=effects.append)
+        runtime, _ = controller(deliberative=True, deliberator=Deliberator())
         base = request()
         definition = ActionDefinition(
             "reason", ActionFamily.DELIBERATE, "model", "plan", RiskClass.READ_ONLY,
@@ -277,7 +269,7 @@ class RuntimeTests(unittest.TestCase):
 
         self.assertEqual(outcome.reason, "DELIBERATIVE_FAILURE")
         self.assertEqual(outcome.route, "deterministic")
-        self.assertEqual(effects, [])
+        self.assertFalse(runtime.effect_execution_enabled)
 
 
 if __name__ == "__main__":

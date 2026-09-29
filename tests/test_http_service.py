@@ -89,10 +89,12 @@ class HTTPServiceTests(unittest.TestCase):
             )
 
     def test_effect_enabled_runtime_is_rejected(self) -> None:
-        runtime, _ = controller(executor=lambda _: None)
+        class EffectCapableRuntime:
+            effect_execution_enabled = True
+
         with self.assertRaisesRegex(ValueError, "external effects"):
             C3RHTTPServer(
-                runtime=runtime,
+                runtime=EffectCapableRuntime(),
                 request_factory=HostFactory(),
                 bearer_token=TOKEN,
                 port=0,

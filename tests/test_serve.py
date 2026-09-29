@@ -50,11 +50,14 @@ class ServeTests(unittest.TestCase):
             build_servers(values, builder_loader=lambda _: lambda: (controller()[0], HostFactory()))
 
     def test_effect_enabled_host_is_rejected(self):
+        class EffectCapableRuntime:
+            effect_execution_enabled = True
+
         with self.assertRaisesRegex(ValueError, "recommendation-only"):
             build_servers(
                 config(),
                 builder_loader=lambda _: lambda: (
-                    controller(executor=lambda _: None)[0], HostFactory()
+                    EffectCapableRuntime(), HostFactory()
                 ),
             )
 

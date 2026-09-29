@@ -20,13 +20,11 @@ if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from c3r.candidate_compiler import CandidateCompiler
-from c3r.commit_gateway import InMemoryApprovalNonceStore, TrustedCommitGateway
 from c3r.cvoc import RobustCvocController
 from c3r.feature_flags import FeatureFlags
 from c3r.runtime import RuntimeRequest, StandaloneController
 from c3r.state_compiler import StateCompiler
 from c3r.state_schema import (
-    ActionCandidate,
     ActionDefinition,
     ActionFamily,
     AuthorityPolicy,
@@ -87,30 +85,21 @@ def _request(case: ControlledCase, arm: str) -> RuntimeRequest:
 
 
 def _run(case: ControlledCase, arm: str) -> dict[str, object]:
-    effects: list[ActionCandidate] = []
     key = b"controlled-verifier-test-key"
     verifier = VerifierFirewall(
         {"policy": lambda _: VerifierDecision(case.verifier_accepts, "fixture policy")},
         VerifierPolicy(default_verifier="policy"), attestation_key=key,
     )
-    gateway = TrustedCommitGateway(
-        trusted_verifier_ids=frozenset({"policy"}), verification_key=key,
-        approval_key=b"controlled-approval-test-key", policy_version="controlled-v1",
-        approval_nonce_store=InMemoryApprovalNonceStore(),
-    )
     ledger = TraceLedger()
     controller = StandaloneController(
         flags=FeatureFlags(enabled_requested=arm == "c3r"),
         compiler=StateCompiler(), candidates=CandidateCompiler(),
-        cvoc=RobustCvocController(), verifier=verifier, gateway=gateway,
+        cvoc=RobustCvocController(), verifier=verifier,
         ledger=ledger,
-        executor=effects.append if case.risk is RiskClass.EXTERNAL_WRITE else None,
     )
     start = perf_counter()
     outcome = controller.run(_request(case, arm))
     latency_ms = (perf_counter() - start) * 1000
-    if effects:
-        raise AssertionError("controlled replay must not execute an action")
     trace = json.loads(outcome.ledger_record.canonical_json)
     success = outcome.selected_action_id == case.expected_action_id
     if case.expected_action_id is not None:
@@ -124,7 +113,7 @@ def _run(case: ControlledCase, arm: str) -> dict[str, object]:
         "outcome_label_ref": f"rubric:c3r-controlled-v1:{case.task_id}",
         "latency_ms": latency_ms,
         "cost_usd": 0.0,
-        "authority_bypass": bool(effects),
+        "authority_bypass": False,  # effects are structurally unavailable in this controller
         "trace_hash": outcome.ledger_record.record_hash,
     }
 
@@ -144,7 +133,7 @@ def collect() -> tuple[list[dict[str, object]], dict[str, object]]:
 
 
 def main() -> None:
-    output = Path(__file__).resolve().parents[1] / "evidence" / "controlled-pairs-v1"
+    output = Path(__file__).resolve().parents[1] / "evidence" / "controlled-pairs-v2"
     output.mkdir(parents=True, exist_ok=True)
     observations, manifest = collect()
     observations_bytes = (

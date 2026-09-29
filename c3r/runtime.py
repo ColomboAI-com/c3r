@@ -15,7 +15,6 @@ from typing import Protocol
 
 from .adapters.providers import ProviderExecutionResult
 from .candidate_compiler import CandidateCompiler
-from .commit_gateway import ApprovalGrant, CommitRequest, TrustedCommitGateway
 from .cvoc import RobustCvocController
 from .feature_flags import FeatureFlags
 from .state_compiler import StateCompiler
@@ -26,6 +25,7 @@ from .state_schema import (
     AuthorityPolicy,
     CompiledState,
     RawState,
+    RiskClass,
     ValueEstimate,
 )
 from .system_one.fast_path import FastPathDecision, LayaFastPath
@@ -66,11 +66,12 @@ class RuntimeOutcome:
 
 
 class StandaloneController:
-    """Run C3R with independent verification and an optional trusted executor.
+    """Run C3R with independent verification and recommendation-only outcomes.
 
-    Estimates, the policy, verifier, gateway, and executor must be supplied by the
-    trusted host. The default is recommendation only. A learned proposal can never
-    supply an executor or a verification attestation through this interface.
+    Estimates, the policy, and verifier must be supplied by the trusted host.
+    Supplying an executor is rejected: arbitrary external effects cannot be
+    atomically committed with the trace ledger. A learned proposal cannot grant
+    authority.
     """
 
     def __init__(
@@ -81,30 +82,28 @@ class StandaloneController:
         candidates: CandidateCompiler,
         cvoc: RobustCvocController,
         verifier: VerifierFirewall,
-        gateway: TrustedCommitGateway,
         ledger: TraceSink,
         fast_path: LayaFastPath | None = None,
         deliberator: Deliberator | None = None,
         executor: Callable[[ActionCandidate], None] | None = None,
     ) -> None:
+        if executor is not None:
+            raise ValueError("external effects are unsupported by StandaloneController")
         self._flags = flags
         self._compiler = compiler
         self._candidates = candidates
         self._cvoc = cvoc
         self._verifier = verifier
-        self._gateway = gateway
         self._ledger = ledger
         self._fast_path = fast_path
         self._deliberator = deliberator
-        self._executor = executor
 
     @property
     def effect_execution_enabled(self) -> bool:
-        return self._executor is not None
+        """Capability flag retained for fail-closed hosting checks."""
+        return False
 
-    def run(
-        self, request: RuntimeRequest, *, approval: ApprovalGrant | None = None
-    ) -> RuntimeOutcome:
+    def run(self, request: RuntimeRequest) -> RuntimeOutcome:
         if not request.run_id:
             raise ValueError("run_id is required")
         state_hash = hashlib.sha256(
@@ -226,31 +225,21 @@ class StandaloneController:
             return finish(
                 "deterministic", "VERIFICATION_REJECTED", candidate_ids=candidate_ids, fast=fast
             )
-        if self._executor is None:
+        if selected.risk_class is not RiskClass.READ_ONLY:
             return finish(
-                "recommendation",
-                "VERIFIED_RECOMMENDATION",
-                selected=selected,
+                "deterministic",
+                "EFFECT_EXECUTION_UNAVAILABLE",
                 candidate_ids=candidate_ids,
                 lower_bound=decision.lower_bound,
-                authority_result="verified_not_committed",
                 fast=fast,
             )
-        try:
-            commit = self._gateway.commit(
-                CommitRequest(selected, verification, approval), self._executor
-            )
-        except (OSError, RuntimeError, TypeError, ValueError):
-            return finish(
-                "deterministic", "COMMIT_FAILURE", candidate_ids=candidate_ids, fast=fast
-            )
         return finish(
-            "commit" if commit.committed else "deterministic",
-            commit.reason,
-            selected=selected if commit.committed else None,
+            "recommendation",
+            "VERIFIED_RECOMMENDATION",
+            selected=selected,
             candidate_ids=candidate_ids,
             lower_bound=decision.lower_bound,
-            authority_result=commit.reason,
+            authority_result="verified_not_committed",
             fast=fast,
         )
 

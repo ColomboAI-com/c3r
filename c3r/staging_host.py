@@ -9,7 +9,6 @@ from __future__ import annotations
 from secrets import token_bytes
 
 from .candidate_compiler import CandidateCompiler
-from .commit_gateway import InMemoryApprovalNonceStore, TrustedCommitGateway
 from .cvoc import RobustCvocController
 from .feature_flags import FeatureFlags
 from .host_factory import ReadOnlyRequestFactory
@@ -37,15 +36,10 @@ def build() -> tuple[StandaloneController, ReadOnlyRequestFactory]:
         {"deny": lambda _candidate: VerifierDecision(False, "staging disabled")},
         VerifierPolicy(default_verifier="deny"), attestation_key=key,
     )
-    gateway = TrustedCommitGateway(
-        trusted_verifier_ids=frozenset({"deny"}), verification_key=key,
-        approval_key=token_bytes(32), policy_version="staging-disabled-v1",
-        approval_nonce_store=InMemoryApprovalNonceStore(),
-    )
     controller = StandaloneController(
         flags=FeatureFlags(enabled_requested=False),
         compiler=StateCompiler(), candidates=CandidateCompiler(),
-        cvoc=RobustCvocController(), verifier=verifier, gateway=gateway,
+        cvoc=RobustCvocController(), verifier=verifier,
         ledger=EphemeralStagingSink(),
     )
     definition = ActionDefinition(
