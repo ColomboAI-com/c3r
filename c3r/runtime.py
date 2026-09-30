@@ -28,9 +28,10 @@ from .state_schema import (
     RiskClass,
     ValueEstimate,
 )
-from .system_one.fast_path import FastPathDecision, LayaFastPath
+from .system_one.fast_path import CalibratedFastPath, FastPathDecision
 from .system_one.question_registry import TypedQuestion
 from .telemetry.trace import DecisionTrace
+from .telemetry.ephemeral import EphemeralTraceSink
 from .telemetry.trace_ledger import LedgerRecord
 from .verifier_firewall import VerifierFirewall
 
@@ -61,6 +62,7 @@ class RuntimeOutcome:
     authority_result: str
     reason: str
     ledger_record: LedgerRecord
+    candidate_ids: tuple[str, ...] = ()
     fast_path: FastPathDecision | None = None
     deliberation: object | None = None
 
@@ -83,9 +85,10 @@ class StandaloneController:
         cvoc: RobustCvocController,
         verifier: VerifierFirewall,
         ledger: TraceSink,
-        fast_path: LayaFastPath | None = None,
+        fast_path: CalibratedFastPath | None = None,
         deliberator: Deliberator | None = None,
         executor: Callable[[ActionCandidate], None] | None = None,
+        readiness_probe: Callable[[], bool] | None = None,
     ) -> None:
         if executor is not None:
             raise ValueError("external effects are unsupported by StandaloneController")
@@ -97,11 +100,36 @@ class StandaloneController:
         self._ledger = ledger
         self._fast_path = fast_path
         self._deliberator = deliberator
+        self._readiness_probe = readiness_probe
 
     @property
     def effect_execution_enabled(self) -> bool:
         """Capability flag retained for fail-closed hosting checks."""
         return False
+
+    @property
+    def decision_enabled(self) -> bool:
+        """Whether the host requested C3R decisions; not a provider health probe."""
+        return self._flags.enabled_requested
+
+    @property
+    def system_one_enabled(self) -> bool:
+        return self._flags.system_one_enabled and self._fast_path is not None
+
+    @property
+    def trace_persistence_enabled(self) -> bool:
+        """Unknown host sinks are treated as persistent for production gating."""
+        return type(self._ledger) is not EphemeralTraceSink
+
+    @property
+    def provider_ready(self) -> bool:
+        """No provider-health assertion is made without a host probe."""
+        if self._readiness_probe is None:
+            return False
+        try:
+            return bool(self._readiness_probe())
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return False
 
     def run(self, request: RuntimeRequest) -> RuntimeOutcome:
         if not request.run_id:
@@ -129,12 +157,14 @@ class StandaloneController:
             system_cost: Mapping[str, float] | None = None,
             provider_id: str | None = None,
         ) -> RuntimeOutcome:
-            probabilities = {} if fast is None else fast.probabilities
+            probabilities = {} if fast is None else dict(fast.probabilities)
+            if fast is not None and fast.candidate_probabilities:
+                probabilities["CANDIDATE_RANK"] = fast.candidate_probabilities
             trace = DecisionTrace(
                 run_id=request.run_id,
                 state_hash=state_hash,
                 access_level=request.access_level,
-                model_provider=provider_id or route,
+                model_provider=provider_id or (fast.model_id if fast is not None else route),
                 candidate_ids=candidate_ids,
                 probabilities=probabilities,
                 utility_quantiles=(
@@ -152,6 +182,7 @@ class StandaloneController:
                 authority_result=authority_result,
                 reason=reason,
                 ledger_record=self._ledger.append(trace),
+                candidate_ids=candidate_ids,
                 fast_path=fast,
                 deliberation=deliberation,
             )
@@ -184,16 +215,27 @@ class StandaloneController:
         if self._flags.system_one_enabled:
             if self._fast_path is None:
                 return finish("deterministic", "SYSTEM_ONE_UNAVAILABLE", candidate_ids=candidate_ids)
+            if self._fast_path.provider != self._flags.system_one_provider:
+                return finish("deterministic", "SYSTEM_ONE_PROVIDER_MISMATCH", candidate_ids=candidate_ids)
             questions = (
                 TypedQuestion("STOP_NOW", ("NO", "YES")),
                 TypedQuestion("DELIBERATION_REQUIRED", ("NO", "YES")),
             )
+            # Only stable identifiers and public operation metadata cross the CLM
+            # boundary. Argument values and provenance never enter action labels.
+            candidate_options = tuple(
+                f"{item.id} | {item.family.value} | {item.risk_class.value}"
+                for item in compiled.candidates
+            )
             try:
                 fast = self._fast_path.decide(
-                    state, questions, action_family="CONTROL", language=request.language
+                    state, questions, action_family="CONTROL", language=request.language,
+                    candidate_options=candidate_options,
                 )
             except (OSError, RuntimeError, TypeError, ValueError):
-                return finish("deterministic", "SYSTEM_ONE_FAILURE", candidate_ids=candidate_ids)
+                return self._deliberate_or_stop(
+                    state, finish, candidate_ids, "SYSTEM_ONE_FAILURE", None
+                )
             if fast.abstained:
                 return self._deliberate_or_stop(
                     state, finish, candidate_ids, "SYSTEM_ONE_ABSTAINED", fast

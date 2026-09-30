@@ -68,6 +68,20 @@ def build_servers(
     runtime, factory = builder_loader(reference)()
     if runtime.effect_execution_enabled:
         raise ValueError("host must be recommendation-only")
+    mode = values.get("C3R_MODE", "staging")
+    if mode not in {"staging", "production_inference", "research_collection"}:
+        raise ValueError("C3R_MODE is invalid")
+    if mode == "production_inference":
+        if values.get("C3R_TRACE_COLLECTION", "false").strip().lower() not in {"false", "0", "off"}:
+            raise ValueError("production inference cannot collect traces")
+        if values.get("C3R_ONLINE_LEARNING", "false").strip().lower() not in {"false", "0", "off"}:
+            raise ValueError("production inference cannot learn online")
+        if runtime.trace_persistence_enabled:
+            raise ValueError("production inference requires the ephemeral trace sink")
+        if not runtime.decision_enabled:
+            raise ValueError("production inference requires decisions enabled")
+        if not runtime.system_one_enabled:
+            raise ValueError("production inference requires an enabled System-One path")
     backend = C3RHTTPServer(
         runtime=runtime,
         request_factory=factory,

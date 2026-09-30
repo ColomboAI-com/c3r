@@ -114,16 +114,19 @@ class _IngressHandler(BaseHTTPRequestHandler):
         self.wfile.write(forwarded)
 
     def do_GET(self) -> None:
-        if self.path not in {"/health", "/metrics"}:
+        if self.path not in {"/health", "/metrics", "/ready", "/v1/models"}:
             self._send_error(404, "not_found")
             return
-        if self.path == "/metrics" and not self._authorized():
+        if self.path != "/health" and not self._authorized():
             self._send_error(401, "unauthorized")
             return
         self._forward("GET")
 
     def do_POST(self) -> None:
-        if self.path != "/v1/decisions":
+        if self.path not in {
+            "/v1/decisions", "/v1/c3r/decide", "/v1/c3r/rank",
+            "/v1/system-one", "/v1/c3r/execute", "/v1/responses",
+        }:
             self._send_error(404, "not_found")
             return
         if not self._authorized():

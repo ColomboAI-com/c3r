@@ -15,18 +15,11 @@ from .host_factory import ReadOnlyRequestFactory
 from .runtime import StandaloneController
 from .state_compiler import StateCompiler
 from .state_schema import ActionDefinition, ActionFamily, AuthorityPolicy, RiskClass
-from .telemetry.trace import DecisionTrace
-from .telemetry.trace_ledger import LedgerRecord, _record_hash, canonical_trace_json
+from .telemetry.ephemeral import EphemeralTraceSink
 from .verifier_firewall import VerifierDecision, VerifierFirewall, VerifierPolicy
 
 
-class EphemeralStagingSink:
-    """Return a per-request integrity hash without retaining any trace rows."""
-
-    def append(self, trace: DecisionTrace) -> LedgerRecord:
-        canonical = canonical_trace_json(trace)
-        genesis = "0" * 64
-        return LedgerRecord(genesis, _record_hash(genesis, canonical), canonical)
+EphemeralStagingSink = EphemeralTraceSink
 
 
 def build() -> tuple[StandaloneController, ReadOnlyRequestFactory]:
