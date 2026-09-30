@@ -84,8 +84,16 @@ class IngressProxyTests(unittest.TestCase):
         self.assertNotIn("X-C3R-Token", headers)
         self.assertEqual(json.loads(forwarded), {"goal": "inspect"})
 
+    def test_sdk_bearer_authentication_without_cloud_run_header(self):
+        request = Request(self.base + "/v1/models", headers={
+            "Authorization": "Bearer " + CLIENT_TOKEN})
+        with urlopen(request, timeout=2) as response:
+            self.assertEqual(response.status, 200)
+        self.assertEqual(self.upstream.seen[-1][1]["Authorization"],
+                         "Bearer " + UPSTREAM_TOKEN)
+
     def test_missing_or_wrong_client_token_never_reaches_upstream(self):
-        for token in (None, "wrong"):
+        for token in (None, "wrong", "invalid-café"):
             status, body = self.request("/v1/decisions", method="POST", token=token,
                                         payload={"goal": "inspect"})
             self.assertEqual((status, body["error"]), (401, "unauthorized"))

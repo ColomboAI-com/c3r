@@ -16,10 +16,11 @@ from typing import Protocol, cast
 from .http_service import C3RHTTPServer, RequestFactory
 from .ingress_proxy import C3RIngressServer
 from .runtime import StandaloneController
+from .host_components import HostComponents
 
 
 class HostBuilder(Protocol):
-    def __call__(self) -> tuple[StandaloneController, RequestFactory]: ...
+    def __call__(self) -> tuple[StandaloneController, RequestFactory] | HostComponents: ...
 
 
 def _required(values: Mapping[str, str], name: str) -> str:
@@ -63,9 +64,16 @@ def build_servers(
     backend_token = _required(values, "C3R_BACKEND_TOKEN")
     port = _port(values, "PORT", 8080)
     backend_port = _port(values, "C3R_BACKEND_PORT", 8081)
+    ingress_host = values.get("C3R_INGRESS_HOST", "0.0.0.0")
+    if ingress_host not in {"0.0.0.0", "127.0.0.1"}:
+        raise ValueError("ingress host must be loopback or the TLS-host container interface")
     if port == backend_port:
         raise ValueError("ingress and backend ports must differ")
-    runtime, factory = builder_loader(reference)()
+    components = builder_loader(reference)()
+    if isinstance(components, HostComponents):
+        runtime, factory = components.runtime, components.factory
+    else:
+        runtime, factory = components
     if runtime.effect_execution_enabled:
         raise ValueError("host must be recommendation-only")
     mode = values.get("C3R_MODE", "staging")
@@ -87,6 +95,8 @@ def build_servers(
         request_factory=factory,
         bearer_token=backend_token,
         port=backend_port,
+        system_one=components.system_one if isinstance(components, HostComponents) else None,
+        responses=components.responses if isinstance(components, HostComponents) else None,
     )
     try:
         ingress = C3RIngressServer(
@@ -94,6 +104,8 @@ def build_servers(
             client_token=client_token,
             upstream_token=backend_token,
             port=port,
+            host=ingress_host,
+            upstream_timeout_seconds=65 if mode == "production_inference" else 5,
         )
     except BaseException:
         backend.server_close()
