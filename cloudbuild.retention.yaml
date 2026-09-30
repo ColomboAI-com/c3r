@@ -1,0 +1,7 @@
+# Supply _IMAGE as a dedicated, private Artifact Registry destination.
+# The source upload is restricted by .gcloudignore; this build never receives
+# traces, papers, local evidence, secrets, or Git metadata.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "--file", "Dockerfile.retention", "--tag", "${_IMAGE}", "."]
+images: ["${_IMAGE}"]
