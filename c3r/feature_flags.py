@@ -27,6 +27,7 @@ class FeatureFlags:
     speculation_requested: bool = False
     moe_control_requested: bool = False
     online_learning_requested: bool = False
+    system_one_provider: str = "clm"
 
     @classmethod
     def from_mapping(cls, values: Mapping[str, str]) -> FeatureFlags:
@@ -38,7 +39,10 @@ class FeatureFlags:
             speculation_requested=_boolean(values, "C3R_SPECULATION", False),
             moe_control_requested=_boolean(values, "C3R_MOE_CONTROL", False),
             online_learning_requested=_boolean(values, "C3R_ONLINE_LEARNING", False),
+            system_one_provider=values.get("C3R_SYSTEM_ONE_PROVIDER", "clm").strip().lower(),
         )
+        if flags.system_one_provider not in {"clm", "laya", "jev", "rule"}:
+            raise ValueError("C3R_SYSTEM_ONE_PROVIDER must be clm, laya, jev, or rule")
         if flags.online_learning_requested:
             raise ValueError("autonomous online learning is prohibited")
         return flags
