@@ -1,0 +1,16 @@
+# CPU projection-head service only; the Qwen encoder is a separate process.
+FROM vllm/vllm-openai@sha256:00d577a6a63281e15336029d5bcee4e9a2cf182214a4f20ba6111b1c8e79893d
+USER root
+RUN apt-get update && apt-get upgrade -y \
+    && apt-get purge -y linux-libc-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && python3 -m pip uninstall --break-system-packages -y vllm \
+    && python3 -m pip install --break-system-packages --no-cache-dir --no-deps \
+       PyJWT==2.14.0 msgpack==1.2.1 urllib3==2.8.0 setuptools==78.1.1
+ADD clm-source-bb42c6c.tar /opt/clm/
+COPY clm-source-revision /opt/clm/source-revision
+RUN python3 -m pip install --break-system-packages --no-deps --no-build-isolation /opt/clm
+COPY clm_runtime.py encoder_identity.py /opt/c3r/
+RUN python3 -c "from clm.engine import Engine; from clm.server import create_app"
+USER 10001:10001
+ENTRYPOINT ["python3", "/opt/c3r/clm_runtime.py"]

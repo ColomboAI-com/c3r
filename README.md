@@ -35,10 +35,14 @@ not for the separate stateless recommendation API described below.
 The [C3R Core API v1 contract](docs/stateless-core-api.md) separates a
 recommendation-only, non-persistent inference service from the governed trace
 collection and empirical-release program above. The current branch implements
-the bounded HTTP routes and a fail-closed `production_inference` mode; it does
-**not** mean the API is deployed or production-qualified. Upstream CLM provides
+the typed CLM API, direct ranking, a text-only Responses subset, a production
+host, and a fail-closed `production_inference` mode. A private, loopback-only
+candidate has returned actual CLM rankings and local DeepSeek text; it is
+**not** a publicly launched or production-qualified API. Upstream CLM provides
 advisory System-One ranking, not generative text or calibrated task-success
-probabilities. `/v1/c3r/execute` and `/v1/responses` are deliberately disabled.
+probabilities. `/v1/c3r/execute` remains disabled. `/v1/responses` invokes
+DeepSeek through an admitted, independently checked text-only controller
+fallback; it does not claim positive learned CVoC or expose private reasoning.
 The first public hostname is a dedicated C3R endpoint, not an MC-1 integration.
 See the [scope-specific release policy](docs/release-policy.md).
 

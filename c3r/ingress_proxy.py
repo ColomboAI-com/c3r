@@ -14,7 +14,6 @@ from threading import BoundedSemaphore
 
 from .http_service import MAX_REQUEST_BYTES, TokenBucket
 
-
 MAX_RESPONSE_BYTES = 65_536
 
 
@@ -76,7 +75,16 @@ class _IngressHandler(BaseHTTPRequestHandler):
 
     def _authorized(self) -> bool:
         supplied = self.headers.get_all("X-C3R-Token", [])
-        return len(supplied) == 1 and hmac.compare_digest(self.server.client_token, supplied[0])
+        authorization = self.headers.get_all("Authorization", [])
+        if len(authorization) > 1 or len(supplied) > 1:
+            return False
+        # Preserve IAM staging's separate client header. Without that header,
+        # SDK clients use standard Bearer auth; it is never relayed upstream.
+        if supplied:
+            return hmac.compare_digest(self.server.client_token.encode(), supplied[0].encode())
+        return (len(authorization) == 1 and
+                hmac.compare_digest(("Bearer " + self.server.client_token).encode(),
+                                    authorization[0].encode()))
 
     def _forward(self, method: str, body: bytes | None = None) -> None:
         if not self.server.in_flight.acquire(blocking=False):

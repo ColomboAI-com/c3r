@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from math import isfinite
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
+from math import isfinite
 from typing import Protocol
 
 from .adapters.providers import ProviderExecutionResult
@@ -28,10 +28,11 @@ from .state_schema import (
     RiskClass,
     ValueEstimate,
 )
+from .system_one.advisory import AdvisoryFastPath
 from .system_one.fast_path import CalibratedFastPath, FastPathDecision
 from .system_one.question_registry import TypedQuestion
-from .telemetry.trace import DecisionTrace
 from .telemetry.ephemeral import EphemeralTraceSink
+from .telemetry.trace import DecisionTrace
 from .telemetry.trace_ledger import LedgerRecord
 from .verifier_firewall import VerifierFirewall
 
@@ -53,6 +54,7 @@ class RuntimeRequest:
     run_id: str
     access_level: str = "internal"
     language: str = "en"
+    requested_text_generation: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,7 +87,7 @@ class StandaloneController:
         cvoc: RobustCvocController,
         verifier: VerifierFirewall,
         ledger: TraceSink,
-        fast_path: CalibratedFastPath | None = None,
+        fast_path: CalibratedFastPath | AdvisoryFastPath | None = None,
         deliberator: Deliberator | None = None,
         executor: Callable[[ActionCandidate], None] | None = None,
         readiness_probe: Callable[[], bool] | None = None,
@@ -131,7 +133,8 @@ class StandaloneController:
         except (OSError, RuntimeError, TypeError, ValueError):
             return False
 
-    def run(self, request: RuntimeRequest) -> RuntimeOutcome:
+    def run(self, request: RuntimeRequest, *,
+            requested_deliberator: Deliberator | None = None) -> RuntimeOutcome:
         if not request.run_id:
             raise ValueError("run_id is required")
         state_hash = hashlib.sha256(
@@ -233,30 +236,45 @@ class StandaloneController:
                     candidate_options=candidate_options,
                 )
             except (OSError, RuntimeError, TypeError, ValueError):
-                return self._deliberate_or_stop(
-                    state, finish, candidate_ids, "SYSTEM_ONE_FAILURE", None
-                )
-            if fast.abstained:
+                if not request.requested_text_generation:
+                    return self._deliberate_or_stop(
+                        state, finish, candidate_ids, "SYSTEM_ONE_FAILURE", None
+                    )
+            if fast is not None and fast.abstained:
                 return self._deliberate_or_stop(
                     state, finish, candidate_ids, "SYSTEM_ONE_ABSTAINED", fast
                 )
-            if fast.answers.get("STOP_NOW") == "YES":
+            if fast is not None and fast.answers.get("STOP_NOW") == "YES":
                 return finish("system_one", "STOP_NOW", candidate_ids=candidate_ids, fast=fast)
-            if fast.answers.get("DELIBERATION_REQUIRED") == "YES":
+            if fast is not None and fast.answers.get("DELIBERATION_REQUIRED") == "YES":
                 return self._deliberate_or_stop(
                     state, finish, candidate_ids, "DELIBERATION_REQUIRED", fast
                 )
 
         decision = self._cvoc.select(compiled.candidates, request.estimates)
         if decision.selected is None:
+            if request.requested_text_generation and requested_deliberator is not None:
+                # Trusted host opt-in for caller-requested bounded text only.
+                # Unknown quality still has no positive CVoC. This fallback must
+                # be admitted by the catalog AND independently verified.
+                fallback = next((candidate for candidate in compiled.candidates
+                                 if candidate.family is ActionFamily.DELIBERATE
+                                 and candidate.risk_class is RiskClass.READ_ONLY), None)
+                if fallback is not None:
+                    try:
+                        verification = self._verifier.verify(fallback)
+                    except (OSError, RuntimeError, TypeError, ValueError):
+                        return finish("deterministic", "VERIFIER_FAILURE", candidate_ids=candidate_ids)
+                    if verification.accepted:
+                        return self._deliberate_or_stop(
+                            state, finish, candidate_ids, "REQUESTED_TEXT_POLICY_FALLBACK", fast,
+                            deliberator=requested_deliberator,
+                        )
+                    return finish("deterministic", "VERIFICATION_REJECTED", candidate_ids=candidate_ids)
             return finish(
                 "deterministic", "NON_POSITIVE_CVOC", candidate_ids=candidate_ids, fast=fast
             )
         selected = decision.selected
-        if selected.family is ActionFamily.DELIBERATE:
-            return self._deliberate_or_stop(
-                state, finish, candidate_ids, "CVOC_SELECTED_DELIBERATION", fast
-            )
         try:
             verification = self._verifier.verify(selected)
         except (OSError, RuntimeError, TypeError, ValueError):
@@ -266,6 +284,11 @@ class StandaloneController:
         if not verification.accepted:
             return finish(
                 "deterministic", "VERIFICATION_REJECTED", candidate_ids=candidate_ids, fast=fast
+            )
+        if selected.family is ActionFamily.DELIBERATE:
+            return self._deliberate_or_stop(
+                state, finish, candidate_ids, "CVOC_SELECTED_DELIBERATION", fast,
+                deliberator=requested_deliberator if request.requested_text_generation else None,
             )
         if selected.risk_class is not RiskClass.READ_ONLY:
             return finish(
@@ -292,13 +315,15 @@ class StandaloneController:
         candidate_ids: tuple[str, ...],
         reason: str,
         fast: FastPathDecision | None,
+        *, deliberator: Deliberator | None = None,
     ) -> RuntimeOutcome:
-        if not self._flags.deliberative_enabled or self._deliberator is None:
+        deliberator = deliberator or self._deliberator
+        if not self._flags.deliberative_enabled or deliberator is None:
             return finish(
                 "deterministic", reason + "_NO_PROVIDER", candidate_ids=candidate_ids, fast=fast
             )
         try:
-            deliberation = self._deliberator.deliberate(state)
+            deliberation = deliberator.deliberate(state)
         except (OSError, RuntimeError, TypeError, ValueError):
             return finish(
                 "deterministic", "DELIBERATIVE_FAILURE", candidate_ids=candidate_ids, fast=fast

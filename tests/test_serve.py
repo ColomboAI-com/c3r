@@ -1,6 +1,11 @@
 import socket
 import threading
 import unittest
+import os
+import subprocess
+import sys
+import time
+import json
 from urllib.request import urlopen
 
 from c3r.serve import build_servers, load_host_builder
@@ -37,6 +42,36 @@ def config():
 
 
 class ServeTests(unittest.TestCase):
+    def test_module_entrypoint_starts_production_host_without_claiming_provider_readiness(self):
+        values = config()
+        values.update({
+            "C3R_HOST_ENTRYPOINT": "c3r.production_host:build",
+            "C3R_MODE": "production_inference", "C3R_ENABLED": "true",
+            "C3R_SYSTEM_ONE": "true", "C3R_DELIBERATIVE": "true",
+            "C3R_SYSTEM_ONE_PROVIDER": "clm", "C3R_TRACE_COLLECTION": "false",
+            "C3R_ONLINE_LEARNING": "false", "C3R_INGRESS_HOST": "127.0.0.1",
+            "C3R_CLM_CONTAINER_DIGEST": "sha256:" + "a" * 64,
+        })
+        process = subprocess.Popen([sys.executable, "-m", "c3r.serve"],
+                                   env={**os.environ, **values}, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.PIPE)
+        try:
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                try:
+                    with urlopen("http://127.0.0.1:" + values["PORT"] + "/health", timeout=1) as response:
+                        self.assertEqual(json.load(response)["status"], "ok")
+                        break
+                except OSError:
+                    if process.poll() is not None:
+                        self.fail("production entrypoint exited before health was reachable")
+                    time.sleep(0.05)
+            else:
+                self.fail("production entrypoint did not become reachable")
+        finally:
+            process.terminate()
+            process.communicate(timeout=5)
+
     def test_missing_host_or_secret_fails_before_binding(self):
         values = config()
         del values["C3R_HOST_ENTRYPOINT"]

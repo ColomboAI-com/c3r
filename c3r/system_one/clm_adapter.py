@@ -6,19 +6,19 @@ fast path consumes these as logits only when a held-out calibration slice exists
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from dataclasses import asdict, dataclass
 import json
 import math
 import re
 import time
+from collections.abc import Callable, Mapping
+from dataclasses import asdict, dataclass
 from typing import cast
 from urllib.parse import urlsplit
-from urllib.request import HTTPHandler, HTTPRedirectHandler, ProxyHandler, Request, build_opener
+from urllib.request import HTTPHandler, ProxyHandler, Request, build_opener
 
+from ..http_transport import NoRedirectHandler
 from ..state_schema import CompiledState
 from .question_registry import TypedQuestion
-
 
 UPSTREAM_CLM_COMMIT = "bb42c6c5bf914fd449bed2f6ca65be80602cb1f7"
 _IMMUTABLE_REVISION = re.compile(r"^[0-9a-f]{40,64}$")
@@ -26,12 +26,6 @@ _MAX_CONTEXT_BYTES = 32_768
 _MAX_RESPONSE_BYTES = 65_536
 _MAX_OPTIONS = 64
 RankTransport = Callable[[Mapping[str, object]], Mapping[str, object]]
-
-
-class _NoRedirect(HTTPRedirectHandler):
-    def redirect_request(self, request: Request, fp: object, code: int,
-                         msg: str, headers: object, newurl: str) -> None:
-        return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +85,15 @@ class ClmAdapter:
     ) -> tuple[float, ...]:
         """Advisory candidate distribution; CVoC and policy still choose actions."""
         return self._rank(self._context(state), "NEXT_ACTION", candidate_ids, deadline=deadline)
+
+    def rank_text(self, context: str, question: str, options: tuple[str, ...],
+                  *, deadline: float | None = None) -> tuple[float, ...]:
+        """Rank caller text without assigning it policy or execution authority."""
+        if not context or len(context.encode("utf-8")) > _MAX_CONTEXT_BYTES:
+            raise ValueError("CLM context must be nonempty and bounded")
+        if not question or len(question) > 1024:
+            raise ValueError("CLM question must be nonempty and bounded")
+        return self._rank(context, question, options, deadline=deadline)
 
     def _context(self, state: CompiledState) -> str:
         context = json.dumps(asdict(state), sort_keys=True, allow_nan=False, ensure_ascii=False)
@@ -157,7 +160,7 @@ class ClmAdapter:
         )
         # Ignore proxy environment variables and reject redirects so a local
         # server cannot relay the secret or state to an off-host destination.
-        opener = build_opener(ProxyHandler({}), _NoRedirect(), HTTPHandler())
+        opener = build_opener(ProxyHandler({}), NoRedirectHandler(), HTTPHandler())
         with opener.open(request, timeout=timeout) as response:
             body = response.read(_MAX_RESPONSE_BYTES + 1)
         if len(body) > _MAX_RESPONSE_BYTES:
