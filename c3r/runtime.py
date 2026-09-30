@@ -31,6 +31,7 @@ from .state_schema import (
 from .system_one.fast_path import CalibratedFastPath, FastPathDecision
 from .system_one.question_registry import TypedQuestion
 from .telemetry.trace import DecisionTrace
+from .telemetry.ephemeral import EphemeralTraceSink
 from .telemetry.trace_ledger import LedgerRecord
 from .verifier_firewall import VerifierFirewall
 
@@ -61,6 +62,7 @@ class RuntimeOutcome:
     authority_result: str
     reason: str
     ledger_record: LedgerRecord
+    candidate_ids: tuple[str, ...] = ()
     fast_path: FastPathDecision | None = None
     deliberation: object | None = None
 
@@ -86,6 +88,7 @@ class StandaloneController:
         fast_path: CalibratedFastPath | None = None,
         deliberator: Deliberator | None = None,
         executor: Callable[[ActionCandidate], None] | None = None,
+        readiness_probe: Callable[[], bool] | None = None,
     ) -> None:
         if executor is not None:
             raise ValueError("external effects are unsupported by StandaloneController")
@@ -97,11 +100,36 @@ class StandaloneController:
         self._ledger = ledger
         self._fast_path = fast_path
         self._deliberator = deliberator
+        self._readiness_probe = readiness_probe
 
     @property
     def effect_execution_enabled(self) -> bool:
         """Capability flag retained for fail-closed hosting checks."""
         return False
+
+    @property
+    def decision_enabled(self) -> bool:
+        """Whether the host requested C3R decisions; not a provider health probe."""
+        return self._flags.enabled_requested
+
+    @property
+    def system_one_enabled(self) -> bool:
+        return self._flags.system_one_enabled and self._fast_path is not None
+
+    @property
+    def trace_persistence_enabled(self) -> bool:
+        """Unknown host sinks are treated as persistent for production gating."""
+        return type(self._ledger) is not EphemeralTraceSink
+
+    @property
+    def provider_ready(self) -> bool:
+        """No provider-health assertion is made without a host probe."""
+        if self._readiness_probe is None:
+            return False
+        try:
+            return bool(self._readiness_probe())
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return False
 
     def run(self, request: RuntimeRequest) -> RuntimeOutcome:
         if not request.run_id:
@@ -154,6 +182,7 @@ class StandaloneController:
                 authority_result=authority_result,
                 reason=reason,
                 ledger_record=self._ledger.append(trace),
+                candidate_ids=candidate_ids,
                 fast_path=fast,
                 deliberation=deliberation,
             )

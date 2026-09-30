@@ -4,6 +4,7 @@ import unittest
 from urllib.request import urlopen
 
 from c3r.serve import build_servers, load_host_builder
+from c3r.staging_host import build as staging_build
 from tests.test_http_service import HostFactory
 from tests.test_runtime import controller
 
@@ -88,6 +89,24 @@ class ServeTests(unittest.TestCase):
             backend.server_close()
             for thread in threads:
                 thread.join(timeout=2)
+
+    def test_production_mode_rejects_persistent_and_disabled_hosts(self):
+        values = config()
+        values["C3R_MODE"] = "production_inference"
+        with self.assertRaisesRegex(ValueError, "ephemeral trace sink"):
+            build_servers(
+                values, builder_loader=lambda _: lambda: (controller()[0], HostFactory()),
+            )
+        with self.assertRaisesRegex(ValueError, "decisions enabled"):
+            build_servers(values, builder_loader=lambda _: staging_build)
+
+    def test_production_mode_rejects_collection_and_online_learning(self):
+        for key in ("C3R_TRACE_COLLECTION", "C3R_ONLINE_LEARNING"):
+            values = config()
+            values["C3R_MODE"] = "production_inference"
+            values[key] = "true"
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                build_servers(values, builder_loader=lambda _: staging_build)
 
 
 if __name__ == "__main__":

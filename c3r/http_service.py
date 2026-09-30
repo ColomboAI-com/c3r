@@ -127,6 +127,30 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path == "/health":
             self._send(200, {"status": "ok"})
             return
+        if self.path in {"/ready", "/v1/models"}:
+            if not self._authorized():
+                self._send(401, {"error": "unauthorized"})
+                return
+            if self.path == "/ready":
+                ready = (self.server.runtime.decision_enabled
+                         and self.server.runtime.provider_ready)
+                self._send(200 if ready else 503, {
+                    "status": "ready" if ready else "disabled",
+                    "scope": "configured_provider_probe_and_decision_policy",
+                })
+            else:
+                available = (self.server.runtime.decision_enabled
+                             and self.server.runtime.provider_ready)
+                self._send(200, {"models": [
+                    {"id": "c3r-core", "capability": "verified_recommendation",
+                     "text_generation": False, "calibrated": False,
+                     "effect_execution": False, "available": available},
+                    {"id": "c3r-system-one", "capability": "advisory_ranking",
+                     "text_generation": False, "calibrated": False,
+                     "effect_execution": False,
+                     "available": available and self.server.runtime.system_one_enabled},
+                ]})
+            return
         if self.path == "/metrics":
             if not self._authorized():
                 self._send(401, {"error": "unauthorized"})
@@ -136,7 +160,10 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(404, {"error": "not_found"})
 
     def do_POST(self) -> None:
-        if self.path != "/v1/decisions":
+        if self.path not in {
+            "/v1/decisions", "/v1/c3r/decide", "/v1/c3r/rank",
+            "/v1/system-one", "/v1/c3r/execute", "/v1/responses",
+        }:
             self._send(404, {"error": "not_found"})
             return
         if not self._authorized():
@@ -146,6 +173,9 @@ class _Handler(BaseHTTPRequestHandler):
         if not self.server.limiter.take():
             self.server.metrics.increment("rate_limited")
             self._send(429, {"error": "rate_limited"})
+            return
+        if self.path in {"/v1/c3r/execute", "/v1/responses"}:
+            self._send(501, {"error": "not_implemented", "reason": "recommendation_only"})
             return
         try:
             length = int(self.headers.get("Content-Length", ""))
@@ -176,7 +206,24 @@ class _Handler(BaseHTTPRequestHandler):
             "authority_result": outcome.authority_result,
             "reason": outcome.reason,
             "trace_hash": outcome.ledger_record.record_hash,
+            "effect_executed": False,
         }
+        if self.path in {"/v1/c3r/rank", "/v1/system-one"}:
+            result["abstained"] = outcome.fast_path is None or outcome.fast_path.abstained
+            result["model_id"] = (
+                None if outcome.fast_path is None else outcome.fast_path.model_id
+            )
+            result["scope"] = "controller_decision_with_system_one_fallback"
+            scores = (() if outcome.fast_path is None
+                      else outcome.fast_path.candidate_probabilities)
+            result["candidate_ranking"] = [
+                {"candidate_id": candidate_id, "system_one_score": score,
+                 "calibrated": False}
+                for candidate_id, score in sorted(
+                    zip(outcome.candidate_ids, scores),
+                    key=lambda item: item[1], reverse=True,
+                )
+            ]
         if isinstance(outcome.deliberation, DeliberativeResult) and is_dataclass(
             outcome.deliberation
         ):

@@ -18,15 +18,29 @@ typed candidates under one conservative value-of-computation policy.
 The v0.1 vertical slice includes bounded hierarchical candidate compilation, a
 calibration-gated System-One seam, and a reproducible DecisionMix v1 schema preview.
 CLM is the new default System-One provider in code; Laya remains optional.
-It is a research alpha: the controller is runnable and tested; fine-tuned weights and empirical
-production calibration remain release gates, not implied claims.
+It is a research alpha: the controller is runnable and tested. Fine-tuned weights
+and empirical calibration remain gates for the **empirical model/data release**,
+not for the separate stateless recommendation API described below.
 
-> **Launch status:** The standalone decision service and governed trace collection
-> are not enabled for public use. The independent [PR #2 review](https://github.com/ColomboAI-com/c3r/pull/2#pullrequestreview-5293835066)
+> **Launch status:** Neither the standalone decision service nor governed trace collection
+> is enabled for public use. The independent [PR #2 review](https://github.com/ColomboAI-com/c3r/pull/2#pullrequestreview-5293835066)
 > requests changes. A real cloud storage audit probe and the first natural
 > empty-bucket purge run are recorded for reviewer inspection, but they do not
-> establish deletion of aged traces or backups, trained weights, calibration,
-> safety results, or canary evidence. See the [reviewer packet](docs/reviewer-staging-packet-2026-09-23.md).
+> establish deletion of aged traces or backups, trained weights, or calibration
+> for the research release. The separate stateless API still needs its own
+> security, live provider, and canary evidence. See the [reviewer packet](docs/reviewer-staging-packet-2026-09-23.md).
+
+### Separate stateless API path
+
+The [C3R Core API v1 contract](docs/stateless-core-api.md) separates a
+recommendation-only, non-persistent inference service from the governed trace
+collection and empirical-release program above. The current branch implements
+the bounded HTTP routes and a fail-closed `production_inference` mode; it does
+**not** mean the API is deployed or production-qualified. Upstream CLM provides
+advisory System-One ranking, not generative text or calibrated task-success
+probabilities. `/v1/c3r/execute` and `/v1/responses` are deliberately disabled.
+The first public hostname is a dedicated C3R endpoint, not an MC-1 integration.
+See the [scope-specific release policy](docs/release-policy.md).
 
 ### Default language model
 
