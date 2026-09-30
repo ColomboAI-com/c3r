@@ -106,6 +106,14 @@ drills, canary evidence, and release authorization must still be qualified.
 Deployment cost/quality estimates must not be described as measured until their
 evidence exists. Before public traffic, qualify:
 
+The CPU head candidate built with `deploy/Dockerfile.clm-hardened` and the
+reviewed API image passed fresh HIGH/CRITICAL scans. Use that hardened build
+recipe for the head; `deploy/Dockerfile.clm` is the unqualified baseline recipe,
+not a production recommendation. This does **not** clear the separate Qwen and
+shared DeepSeek model-serving image. Its scan findings still require review or
+remediation. The short private load pilot and CLM outage/operator recovery drills
+are recorded in private evidence; they are not sustained SLOs or public canaries.
+
 1. Immutable CLM and Qwen encoder artifacts, provider health/timeout/fallback,
    and revision attestations.
 2. Host-supplied catalog, measured estimates, read-only verifier, data-boundary
