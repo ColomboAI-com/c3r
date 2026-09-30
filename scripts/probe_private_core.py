@@ -1,5 +1,6 @@
 """Public API smoke/security checks using synthetic text and host-local credentials."""
 import json
+import os
 import time
 from pathlib import Path
 
@@ -8,7 +9,8 @@ import requests
 
 def main():
     config = dict(line.split("=", 1) for line in
-                  (Path.home() / ".c3r-private-inference/candidate-v2.env").read_text().splitlines())
+                  (Path.home() / ".c3r-private-inference" /
+                   os.environ.get("C3R_PROBE_CONFIG", "candidate-v2.env")).read_text().splitlines())
     session = requests.Session()
     session.trust_env = False
     headers = {"Authorization": "Bearer " + config["C3R_CLIENT_TOKEN"]}

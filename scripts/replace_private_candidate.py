@@ -27,7 +27,7 @@ def main():
             or config.get("C3R_TRACE_COLLECTION") != "false"
             or config.get("C3R_ONLINE_LEARNING") != "false"):
         raise RuntimeError("replacement is restricted to non-collecting private inference")
-    clm_image = docker("image", "inspect", "c3r-clm:pinned-verified-bb42c6c", "--format", "{{.Id}}")
+    clm_image = docker("image", "inspect", "c3r-clm:hardened-clean-bb42c6c", "--format", "{{.Id}}")
     core_image = docker("image", "inspect", "c3r-core:reviewed-20260930", "--format", "{{.Id}}")
     config["C3R_CLM_CONTAINER_DIGEST"] = clm_image
     descriptor = os.open(current, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
