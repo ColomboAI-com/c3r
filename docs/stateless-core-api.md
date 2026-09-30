@@ -88,8 +88,14 @@ CLM source, Qwen revision and head revision/hash are pinned. The loopback CLM
 wrapper checks loaded head and encoder files at startup, disables its embedding
 and action caches, and exposes `/internal/clm/artifact`. Its container identity
 is a **deployment-host readback**, not a cryptographic remote attestation.
-Readiness compares that identity and artifact pins and runs actual CLM ranking;
-it also checks the encoder and local DeepSeek model endpoints.
+Encoder checks use immutable upstream Git-blob/LFS identities, not hashes trusted
+from the local manifest. `deploy/attest_encoder.py` independently checks the
+running encoder's mounted files, read-only mount and immutable container image.
+Readiness compares artifact pins and runs actual CLM ranking and bounded DeepSeek
+generation. Checks coalesce for 15 seconds; only booleans and expiry timestamps
+are cached. Model discovery reports ranking availability independently of
+DeepSeek. Disable switches take effect immediately before typed inference, not
+after the health-cache expires.
 
 ## Production gates
 

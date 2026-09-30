@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass, replace
 from typing import Protocol
 from uuid import uuid4
-from dataclasses import dataclass, replace
 
 from .adapters.providers import ProviderAdapter
 from .runtime import RuntimeRequest, StandaloneController

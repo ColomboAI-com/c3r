@@ -7,10 +7,10 @@ from pathlib import Path
 import requests
 import torch
 import uvicorn
-import vllm
 from clm.embedder import Embedder
 from clm.engine import Engine
 from clm.server import create_app
+from encoder_identity import REVISION, verify_encoder
 
 SOURCE = "bb42c6c5bf914fd449bed2f6ca65be80602cb1f7"
 HEAD_SHA256 = "b2b4a8c9c2d39263eff78a351eb909a342ce9b3bf21a3f07c1d1bf15f1c4eda5"
@@ -46,10 +46,9 @@ def main():
     actual_head = digest(head)
     if actual_head != HEAD_SHA256 or manifest["head_sha256"] != actual_head:
         raise RuntimeError("CLM head mismatch")
-    for filename, expected in manifest["encoder_files"].items():
-        path = (ROOT / "encoder" / filename).resolve()
-        if not path.is_relative_to(ROOT / "encoder") or digest(path) != expected:
-            raise RuntimeError("encoder file mismatch")
+    if manifest["encoder_revision"] != REVISION:
+        raise RuntimeError("encoder revision mismatch")
+    verify_encoder(ROOT / "encoder")
     embedder = Embedder(max_tokens=8192, cache_size=0, batch=8, timeout=10)
     embedder.session = LocalSession()
     engine = Engine(embedder=embedder, checkpoint=str(head), device="cpu", action_cache=0)
@@ -58,9 +57,11 @@ def main():
     artifact.update({
         "container_digest": os.environ.get("C3R_CLM_CONTAINER_DIGEST", "unattested"),
         "container_digest_source": "deployment_host_readback",
-        "vllm_version": vllm.__version__, "torch_version": torch.__version__,
+        "head_requires_vllm": False, "torch_version": torch.__version__,
         "cuda_version": torch.version.cuda, "embedding_cache_size": 0,
         "action_cache_enabled": False, "head_device": "cpu",
+        "encoder_content_verified": True,
+        "encoder_identity_basis": "immutable_upstream_git_blobs_and_lfs_sha256",
     })
 
     @app.get("/internal/clm/artifact")

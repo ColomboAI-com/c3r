@@ -14,7 +14,6 @@ from threading import BoundedSemaphore
 
 from .http_service import MAX_REQUEST_BYTES, TokenBucket
 
-
 MAX_RESPONSE_BYTES = 65_536
 
 

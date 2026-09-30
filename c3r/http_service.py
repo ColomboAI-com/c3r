@@ -9,18 +9,17 @@ from __future__ import annotations
 import hmac
 import json
 import time
-from math import isfinite
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, is_dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from math import isfinite
 from threading import Lock
 from typing import Protocol, cast
 
 from .deliberative.envelope import DeliberativeResult
+from .responses import ResponsesService
 from .runtime import RuntimeRequest, StandaloneController
 from .system_one.inference import SystemOneInference
-from .responses import ResponsesService
-
 
 MAX_REQUEST_BYTES = 65_536
 
@@ -150,6 +149,10 @@ class _Handler(BaseHTTPRequestHandler):
                 available = (self.server.runtime.decision_enabled
                              and self.server.runtime.system_one_enabled
                              and self.server.runtime.provider_ready)
+                ranking_available = (self.server.runtime.decision_enabled
+                                     and self.server.runtime.system_one_enabled
+                                     and self.server.system_one is not None
+                                     and self.server.system_one.ready)
                 models = [
                     {"id": "c3r-core", "capability": "verified_recommendation",
                      "text_generation": self.server.responses is not None, "calibrated": False,
@@ -157,10 +160,10 @@ class _Handler(BaseHTTPRequestHandler):
                     {"id": "c3r-system-one", "capability": "advisory_ranking",
                      "text_generation": False, "calibrated": False,
                      "effect_execution": False,
-                     "available": available and self.server.runtime.system_one_enabled},
+                     "available": ranking_available},
                     {"id": "c3r-verifier", "capability": "advisory_output_ranking",
                      "text_generation": False, "calibrated": False, "effect_execution": False,
-                     "available": available and self.server.system_one is not None},
+                     "available": ranking_available},
                 ]
                 self._send(200, {"object": "list", "data": models, "models": models})
             return
@@ -209,6 +212,9 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(200, response)
                 return
             if self.path in {"/v1/c3r/rank", "/v1/system-one"} and self.server.system_one:
+                if not (self.server.runtime.decision_enabled
+                        and self.server.runtime.system_one_enabled):
+                    raise RuntimeError("System-One disabled")
                 result = self.server.system_one.infer(cast(dict[str, object], payload))
                 self.server.metrics.increment("system_one_inferences")
                 self._send(200, result)

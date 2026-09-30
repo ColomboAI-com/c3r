@@ -6,20 +6,19 @@ fast path consumes these as logits only when a held-out calibration slice exists
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from dataclasses import asdict, dataclass
 import json
 import math
 import re
 import time
+from collections.abc import Callable, Mapping
+from dataclasses import asdict, dataclass
 from typing import cast
 from urllib.parse import urlsplit
 from urllib.request import HTTPHandler, ProxyHandler, Request, build_opener
-from ..http_transport import NoRedirectHandler
 
+from ..http_transport import NoRedirectHandler
 from ..state_schema import CompiledState
 from .question_registry import TypedQuestion
-
 
 UPSTREAM_CLM_COMMIT = "bb42c6c5bf914fd449bed2f6ca65be80602cb1f7"
 _IMMUTABLE_REVISION = re.compile(r"^[0-9a-f]{40,64}$")

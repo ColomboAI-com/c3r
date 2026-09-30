@@ -1,5 +1,6 @@
 """Uncalibrated ranker which makes no learned control/authority decisions."""
 from collections.abc import Sequence
+
 from ..state_schema import CompiledState
 from .clm_adapter import ClmAdapter
 from .fast_path import FastPathDecision

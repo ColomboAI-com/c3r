@@ -1,9 +1,9 @@
 """Start a loopback-only candidate. Tokens stay in a mode-0600 host file."""
 import json
 import os
-from pathlib import Path
 import secrets
 import subprocess
+from pathlib import Path
 
 
 def main():

@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import json
-from math import isfinite
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from math import isfinite
 from typing import Protocol, cast
 from urllib.parse import urlparse
-from urllib.request import Request, ProxyHandler, build_opener
-from ..http_transport import NoRedirectHandler
+from urllib.request import ProxyHandler, Request, build_opener
 
 from ..deliberative.envelope import DeliberativeResult
+from ..http_transport import NoRedirectHandler
 from ..state_schema import ActionFamily
 
 MAX_RESPONSE_BYTES = 65_536
@@ -257,7 +257,8 @@ class ProviderAdapter:
         headers = {"X-C3R-Timeout": str(self.config.timeout_seconds)}
         if self.config.api_key:
             headers["Authorization"] = "Bearer " + self.config.api_key
-        response = self._transport(self.config.base_url.rstrip("/") + "/chat/completions",
+        try:
+            response = self._transport(self.config.base_url.rstrip("/") + "/chat/completions",
                                    headers, {
             "model": self.config.model, "max_tokens": max_output_tokens, "temperature": 0,
             "messages": [
@@ -265,10 +266,13 @@ class ProviderAdapter:
                  "private reasoning or claim to execute tools, commit actions, or grant authority."},
                 {"role": "user", "content": text},
             ],
-        })
+            })
+            size = len(json.dumps(response.body, allow_nan=False).encode())
+        except (OSError, ValueError, TypeError) as error:
+            raise RuntimeError("generative provider transport unavailable") from error
         if not 200 <= response.status < 300:
             raise RuntimeError("generative provider unavailable")
-        if len(json.dumps(response.body, allow_nan=False).encode()) > MAX_RESPONSE_BYTES:
+        if size > MAX_RESPONSE_BYTES:
             raise RuntimeError("generative provider response oversized")
         try:
             choices = cast(list[dict[str, object]], response.body["choices"])

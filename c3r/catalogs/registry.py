@@ -1,6 +1,7 @@
 """Admission of caller task text to registered, host-owned catalogs."""
-from collections.abc import Mapping
 import json
+from collections.abc import Mapping
+
 from ..host_factory import ReadOnlyRequestFactory
 from ..runtime import RuntimeRequest
 from .base import Catalog

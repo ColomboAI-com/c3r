@@ -3,4 +3,5 @@ ADD clm-source-bb42c6c.tar /opt/clm/
 COPY clm-source-revision /opt/clm/source-revision
 RUN python3 -m pip install --no-deps --no-build-isolation /opt/clm
 COPY clm_runtime.py /opt/c3r/clm_runtime.py
+COPY encoder_identity.py /opt/c3r/encoder_identity.py
 ENTRYPOINT ["python3", "/opt/c3r/clm_runtime.py"]

@@ -13,10 +13,10 @@ import threading
 from collections.abc import Callable, Mapping
 from typing import Protocol, cast
 
+from .host_components import HostComponents
 from .http_service import C3RHTTPServer, RequestFactory
 from .ingress_proxy import C3RIngressServer
 from .runtime import StandaloneController
-from .host_components import HostComponents
 
 
 class HostBuilder(Protocol):

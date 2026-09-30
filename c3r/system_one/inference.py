@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 import json
 import time
+from collections.abc import Callable, Mapping
 from typing import cast
 
 from .clm_adapter import ClmAdapter
@@ -31,8 +31,18 @@ def _list(value: object) -> list[object]:
 class SystemOneInference:
     """Typed questions and arbitrary strings: scores are NOT success probabilities."""
 
-    def __init__(self, adapter: ClmAdapter) -> None:
+    def __init__(self, adapter: ClmAdapter, *, readiness: Callable[[], bool] | None = None) -> None:
         self.adapter = adapter
+        self._readiness = readiness
+
+    @property
+    def ready(self) -> bool:
+        if self._readiness is None:
+            return False
+        try:
+            return self._readiness()
+        except (OSError, RuntimeError, ValueError, TypeError):
+            return False
 
     def _rank(self, context: str, question: str, options: tuple[str, ...],
               deadline: float) -> tuple[float, ...]:

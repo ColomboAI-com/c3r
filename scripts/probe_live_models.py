@@ -1,6 +1,7 @@
 """Non-sensitive loopback inference drill. Does not store task traces."""
 import json
 import time
+
 import requests
 
 

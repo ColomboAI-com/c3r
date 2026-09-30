@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from math import isfinite
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
+from math import isfinite
 from typing import Protocol
 
 from .adapters.providers import ProviderExecutionResult
@@ -28,11 +28,11 @@ from .state_schema import (
     RiskClass,
     ValueEstimate,
 )
-from .system_one.fast_path import CalibratedFastPath, FastPathDecision
 from .system_one.advisory import AdvisoryFastPath
+from .system_one.fast_path import CalibratedFastPath, FastPathDecision
 from .system_one.question_registry import TypedQuestion
-from .telemetry.trace import DecisionTrace
 from .telemetry.ephemeral import EphemeralTraceSink
+from .telemetry.trace import DecisionTrace
 from .telemetry.trace_ledger import LedgerRecord
 from .verifier_firewall import VerifierFirewall
 
@@ -275,10 +275,6 @@ class StandaloneController:
                 "deterministic", "NON_POSITIVE_CVOC", candidate_ids=candidate_ids, fast=fast
             )
         selected = decision.selected
-        if selected.family is ActionFamily.DELIBERATE:
-            return self._deliberate_or_stop(
-                state, finish, candidate_ids, "CVOC_SELECTED_DELIBERATION", fast
-            )
         try:
             verification = self._verifier.verify(selected)
         except (OSError, RuntimeError, TypeError, ValueError):
@@ -288,6 +284,11 @@ class StandaloneController:
         if not verification.accepted:
             return finish(
                 "deterministic", "VERIFICATION_REJECTED", candidate_ids=candidate_ids, fast=fast
+            )
+        if selected.family is ActionFamily.DELIBERATE:
+            return self._deliberate_or_stop(
+                state, finish, candidate_ids, "CVOC_SELECTED_DELIBERATION", fast,
+                deliberator=requested_deliberator if request.requested_text_generation else None,
             )
         if selected.risk_class is not RiskClass.READ_ONLY:
             return finish(

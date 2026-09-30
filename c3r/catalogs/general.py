@@ -1,6 +1,6 @@
 """Compute recommendations only, not implemented tool capabilities."""
-from .base import Catalog
 from ..state_schema import ActionDefinition, ActionFamily, AuthorityPolicy, RiskClass
+from .base import Catalog
 
 
 def general_catalog(name: str = "agent-v1") -> Catalog:

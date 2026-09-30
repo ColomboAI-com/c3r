@@ -1,7 +1,8 @@
 """Public API smoke/security checks using synthetic text and host-local credentials."""
 import json
-from pathlib import Path
 import time
+from pathlib import Path
+
 import requests
 
 
