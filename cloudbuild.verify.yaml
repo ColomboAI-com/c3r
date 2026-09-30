@@ -1,0 +1,41 @@
+# GitHub-independent verification. Submit with --ignore-file=.gcloudignore.verify.
+# The uploaded context contains only public runtime source and synthetic tests.
+steps:
+  - name: python:3.11-alpine3.24
+    id: unit-311
+    entrypoint: python
+    args: ["-m", "unittest", "discover", "-s", "tests", "-v"]
+  - name: python:3.12-alpine3.23
+    id: unit-312
+    entrypoint: python
+    args: ["-m", "unittest", "discover", "-s", "tests", "-v"]
+  - name: python:3.13-alpine3.23
+    id: unit-313
+    entrypoint: python
+    args: ["-m", "unittest", "discover", "-s", "tests", "-v"]
+  - name: gcr.io/cloud-builders/docker
+    id: runtime-image
+    args: ["build", "--pull", "--file", "Dockerfile", "--tag", "c3r-runtime:verify", "."]
+  - name: gcr.io/cloud-builders/docker
+    id: retention-image
+    args: ["build", "--pull", "--file", "Dockerfile.retention", "--tag", "c3r-retention:verify", "."]
+  - name: gcr.io/cloud-builders/docker
+    id: retention-command
+    entrypoint: sh
+    args:
+      - -c
+      - >-
+        test "$(docker image inspect c3r-retention:verify --format '{{json .Config.Cmd}}')"
+        = '["python","-m","c3r.retention_job"]'
+  - name: gcr.io/cloud-builders/docker
+    id: runtime-import
+    args: ["run", "--rm", "c3r-runtime:verify", "python", "-c", "import c3r.serve"]
+  - name: gcr.io/cloud-builders/docker
+    id: retention-import
+    args: ["run", "--rm", "c3r-retention:verify", "python", "-c", "import c3r.retention_job"]
+  - name: aquasec/trivy:0.74.0
+    id: runtime-vulnerability-scan
+    args: ["image", "--no-progress", "--exit-code", "1", "--severity", "HIGH,CRITICAL", "c3r-runtime:verify"]
+  - name: aquasec/trivy:0.74.0
+    id: retention-vulnerability-scan
+    args: ["image", "--no-progress", "--exit-code", "1", "--severity", "HIGH,CRITICAL", "c3r-retention:verify"]
