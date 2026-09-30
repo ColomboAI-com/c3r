@@ -9,6 +9,7 @@ from __future__ import annotations
 import hmac
 import json
 import time
+from math import isfinite
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, is_dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -216,6 +217,9 @@ class _Handler(BaseHTTPRequestHandler):
             result["scope"] = "controller_decision_with_system_one_fallback"
             scores = (() if outcome.fast_path is None
                       else outcome.fast_path.candidate_probabilities)
+            if (len(scores) != len(outcome.candidate_ids)
+                    or any(not isfinite(score) or score < 0 or score > 1 for score in scores)):
+                scores = ()
             result["candidate_ranking"] = [
                 {"candidate_id": candidate_id, "system_one_score": score,
                  "calibrated": False}
