@@ -1,4 +1,5 @@
-# GitHub-independent verification. Submit with --ignore-file=.gcloudignore.verify.
+# GitHub-independent verification. Submit from the repository root with:
+# gcloud builds submit . --config=cloudbuild.verify.yaml --ignore-file=.gcloudignore.verify --project=APPROVED_BUILD_PROJECT --region=us-central1
 # The uploaded context contains only public runtime source and synthetic tests.
 steps:
   - name: python:3.11-alpine3.24
