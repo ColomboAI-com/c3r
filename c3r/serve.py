@@ -80,6 +80,8 @@ def build_servers(
             raise ValueError("production inference requires the ephemeral trace sink")
         if not runtime.decision_enabled:
             raise ValueError("production inference requires decisions enabled")
+        if not runtime.system_one_enabled:
+            raise ValueError("production inference requires an enabled System-One path")
     backend = C3RHTTPServer(
         runtime=runtime,
         request_factory=factory,

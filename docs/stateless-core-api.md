@@ -8,7 +8,7 @@ permission to execute external effects or make calibrated success claims.
 ## Operating modes
 
 `C3R_MODE=production_inference` fails startup unless the trusted host enables
-decisions, rejects external effect execution, and uses the in-process
+decisions and a System-One path, rejects external effect execution, and uses the in-process
 `EphemeralTraceSink`. It rejects `C3R_TRACE_COLLECTION=true` and
 `C3R_ONLINE_LEARNING=true`. This sink computes a response hash but stores no
 trace rows or cross-request chain. Ordinary aggregate counts are allowed;
@@ -32,7 +32,7 @@ those fields.
 | Route | Contract |
 | --- | --- |
 | `GET /health` | Process liveness only. |
-| `GET /ready` | Authenticated. Returns 503 until decisions are enabled **and** the host's provider probe succeeds. It is not a complete launch attestation. |
+| `GET /ready` | Authenticated. Returns 503 until decisions and System-One are enabled **and** the host's provider probe succeeds. It is not a complete launch attestation. |
 | `GET /v1/models` | Authenticated model-like discovery of `c3r-core` and `c3r-system-one`, each labeled non-generative and uncalibrated. Availability follows the provider probe. |
 | `POST /v1/c3r/decide` | Runs the controller and returns a read-only recommendation or explicit fallback. |
 | `POST /v1/c3r/rank` | Same safe controller path, plus available advisory candidate scores. No score is represented as probability of task success. |

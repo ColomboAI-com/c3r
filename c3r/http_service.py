@@ -134,6 +134,7 @@ class _Handler(BaseHTTPRequestHandler):
                 return
             if self.path == "/ready":
                 ready = (self.server.runtime.decision_enabled
+                         and self.server.runtime.system_one_enabled
                          and self.server.runtime.provider_ready)
                 self._send(200 if ready else 503, {
                     "status": "ready" if ready else "disabled",
@@ -141,6 +142,7 @@ class _Handler(BaseHTTPRequestHandler):
                 })
             else:
                 available = (self.server.runtime.decision_enabled
+                             and self.server.runtime.system_one_enabled
                              and self.server.runtime.provider_ready)
                 self._send(200, {"models": [
                     {"id": "c3r-core", "capability": "verified_recommendation",
