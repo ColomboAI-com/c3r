@@ -10,7 +10,9 @@ RUN apt-get update && apt-get upgrade -y \
 ADD clm-source-bb42c6c.tar /opt/clm/
 COPY clm-source-revision /opt/clm/source-revision
 RUN python3 -m pip install --break-system-packages --no-deps --no-build-isolation /opt/clm
+RUN python3 -m pip uninstall --break-system-packages -y setuptools wheel cryptography
 COPY clm_runtime.py encoder_identity.py /opt/c3r/
 RUN python3 -c "from clm.engine import Engine; from clm.server import create_app"
+RUN python3 -m pip uninstall --break-system-packages -y pip
 USER 10001:10001
 ENTRYPOINT ["python3", "/opt/c3r/clm_runtime.py"]
