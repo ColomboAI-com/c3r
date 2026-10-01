@@ -1,0 +1,27 @@
+{
+  "all_local_checks_passed": true,
+  "checks": {
+    "approved_fixture_admitted": true,
+    "artifact_reference_rejected": true,
+    "checkpoint_chain_verifies": true,
+    "free_text_rejected": true,
+    "local_expired_row_purged": true,
+    "overdue_purge_blocks_collection": true,
+    "post_purge_chain_continues": true,
+    "rejected_rows_not_persisted": true,
+    "unapproved_source_rejected": true
+  },
+  "evidence_kind": "non_sensitive_local_fixture_dry_run",
+  "live_trace_collection_enabled": false,
+  "not_verified_by_this_run": [
+    "deployed encryption and IAM",
+    "read/export access audit",
+    "daily scheduler and deletion of backups or replicas",
+    "independent ledger-head anchor",
+    "alert delivery and rollback",
+    "live internal-task provenance or outcomes"
+  ],
+  "source": "c3r_fixture_review",
+  "task_population": "one C3R-authored synthetic fixture; no customer or product records"
+}
+

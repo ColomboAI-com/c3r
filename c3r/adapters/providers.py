@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
+from math import isfinite
 from typing import Protocol, cast
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import ProxyHandler, Request, build_opener
 
 from ..deliberative.envelope import DeliberativeResult
+from ..http_transport import NoRedirectHandler
 from ..state_schema import ActionFamily
 
 MAX_RESPONSE_BYTES = 65_536
@@ -32,7 +34,7 @@ class ProviderConfig:
     kind: ProviderKind
     base_url: str
     model: str
-    api_key: str | None
+    api_key: str | None = field(repr=False)
     timeout_seconds: float = 60.0
 
     def __post_init__(self) -> None:
@@ -40,10 +42,20 @@ class ProviderConfig:
         local = parsed.hostname in {"localhost", "127.0.0.1", "::1"}
         if parsed.scheme != "https" and not (parsed.scheme == "http" and local):
             raise ValueError("remote provider endpoints must use HTTPS")
+        if parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise ValueError("provider origin must not contain credentials, query, or fragment")
         if not self.provider_id or not self.model:
             raise ValueError("provider_id and model are required")
-        if self.timeout_seconds <= 0:
+        if not isfinite(self.timeout_seconds) or not 0 < self.timeout_seconds <= 120:
             raise ValueError("timeout_seconds must be positive")
+
+    @property
+    def is_local(self) -> bool:
+        return urlparse(self.base_url).hostname in {"localhost", "127.0.0.1", "::1"}
+
+    @property
+    def uses_openrouter(self) -> bool:
+        return self.base_url.rstrip("/") == "https://openrouter.ai/api/v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,7 +97,8 @@ _SYSTEM = (
 def _number(value: object) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return 0.0
-    return float(value)
+    number = float(value)
+    return number if isfinite(number) and number >= 0 else 0.0
 
 
 def _string_tuple(value: object) -> tuple[str, ...]:
@@ -119,7 +132,7 @@ def _default_transport(
         method="POST",
     )
     started = time.monotonic()
-    with urlopen(request, timeout=timeout) as response:
+    with build_opener(ProxyHandler({}), NoRedirectHandler()).open(request, timeout=timeout) as response:
         raw = response.read(MAX_RESPONSE_BYTES + 1)
         status = int(response.status)
     if len(raw) > MAX_RESPONSE_BYTES:
@@ -242,6 +255,61 @@ class ProviderAdapter:
         self.config = config
         self._transport = transport
         self._codec = _CODECS[config.kind]
+
+    def generate(self, text: str, max_output_tokens: int) -> tuple[str, str, dict[str, float]]:
+        """Bounded text-only OpenAI-compatible generation; never returns hidden reasoning."""
+        if self.config.kind not in {ProviderKind.OPENAI, ProviderKind.OPENAI_COMPATIBLE}:
+            raise ValueError("text generation requires an OpenAI-compatible provider")
+        if not text or len(text.encode("utf-8")) > 16384 or not 1 <= max_output_tokens <= 2048:
+            raise ValueError("generation request outside bounds")
+        headers = {"X-C3R-Timeout": str(self.config.timeout_seconds)}
+        if self.config.api_key:
+            headers["Authorization"] = "Bearer " + self.config.api_key
+        payload: dict[str, object] = {
+            "model": self.config.model, "max_tokens": max_output_tokens, "temperature": 0,
+            "messages": [
+                {"role": "system", "content": "Provide a helpful final answer only. Do not expose "
+                 "private reasoning or claim to execute tools, commit actions, or grant authority."},
+                {"role": "user", "content": text},
+            ],
+        }
+        if self.config.uses_openrouter:
+            if not self.config.api_key:
+                raise RuntimeError("hosted provider credential unavailable")
+            payload["provider"] = {"zdr": True, "data_collection": "deny",
+                                   "require_parameters": True, "allow_fallbacks": False}
+        try:
+            response = self._transport(self.config.base_url.rstrip("/") + "/chat/completions",
+                                       headers, payload)
+            size = len(json.dumps(response.body, allow_nan=False).encode())
+        except (OSError, ValueError, TypeError) as error:
+            raise RuntimeError("generative provider transport unavailable") from error
+        if not 200 <= response.status < 300:
+            raise RuntimeError("generative provider unavailable")
+        if size > MAX_RESPONSE_BYTES:
+            raise RuntimeError("generative provider response oversized")
+        try:
+            choices = cast(list[dict[str, object]], response.body["choices"])
+            message = cast(dict[str, object], choices[0]["message"])
+            if message.get("tool_calls") or message.get("function_call"):
+                raise ValueError("tool execution is not supported")
+            output = _content(message["content"])
+            reason = choices[0].get("finish_reason")
+            if not output.strip() or reason not in {"stop", "length"}:
+                raise ValueError("invalid generation result")
+            usage = cast(Mapping[str, object], response.body.get("usage", {}))
+            observed = {
+                "input_tokens": _number(usage.get("prompt_tokens")),
+                "output_tokens": _number(usage.get("completion_tokens")),
+                "latency_ms": response.latency_ms,
+            }
+            cost = usage.get("cost")
+            if (isinstance(cost, (int, float)) and not isinstance(cost, bool)
+                    and isfinite(cost) and cost >= 0):
+                observed["provider_cost_usd"] = float(cost)
+            return output, cast(str, reason), observed
+        except (KeyError, IndexError, TypeError, ValueError, AttributeError) as error:
+            raise RuntimeError("invalid generative provider response") from error
 
     def deliberate(self, request: DeliberationRequest) -> ProviderExecutionResult:
         state = json.dumps(dict(request.state), sort_keys=True, separators=(",", ":"))

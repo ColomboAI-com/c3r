@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from math import isfinite
 
 from .state_schema import ActionCandidate, ActionFamily, CvocDecision, ValueEstimate
 
@@ -14,6 +15,16 @@ class RobustCvocController:
         self._uncertainty_multiplier = uncertainty_multiplier
 
     def lower_bound(self, estimate: ValueEstimate) -> float:
+        values = (
+            estimate.expected_gain,
+            estimate.total_cost,
+            estimate.risk_penalty,
+            estimate.uncertainty,
+        )
+        if not all(isfinite(value) for value in values):
+            return float("-inf")
+        if min(estimate.total_cost, estimate.risk_penalty, estimate.uncertainty) < 0:
+            return float("-inf")
         return (
             estimate.expected_gain
             - estimate.total_cost

@@ -1,0 +1,18 @@
+# Supply _IMAGE as a dedicated, private Artifact Registry destination.
+# The source upload is restricted by .gcloudignore; this build never receives
+# traces, papers, local evidence, secrets, or Git metadata.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "--file", "Dockerfile.retention", "--tag", "${_IMAGE}", "."]
+  - name: gcr.io/cloud-builders/docker
+    entrypoint: sh
+    args:
+      - -c
+      - >-
+        test "$(docker image inspect ${_IMAGE} --format '{{json .Config.Cmd}}')"
+        = '["python","-m","c3r.retention_job"]'
+  - name: gcr.io/cloud-builders/docker
+    args: ["run", "--rm", "${_IMAGE}", "python", "-c", "import c3r.retention_job"]
+  - name: aquasec/trivy:0.74.0
+    args: ["image", "--no-progress", "--exit-code", "1", "--severity", "HIGH,CRITICAL", "${_IMAGE}"]
+images: ["${_IMAGE}"]
