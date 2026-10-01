@@ -5,6 +5,11 @@ System Two, and C3R Core on the existing eight-H100 node. No new GPU,
 OpenRouter, or hosted inference provider is part of this deployment.
 
 `h100-production.env` is a **qualification target**, not a production approval.
+The currently pinned candidate failed Triton runtime compilation because its
+hardening removed required C headers. **Do not execute that image.** The repaired
+Dockerfile preserves patched development headers and runs a compile-only probe;
+its rebuilt image must independently pass security scans and receive a new pin
+before another supervised GPU load. A clean scanner result alone is insufficient.
 It pins the locally built immutable candidate image, upstream source/base image,
 checkpoint revision, TP8, 85% reservation, Engram CPU offload, 32K context,
 two sequences, batch limit, and both parsers. Registry publication of that local

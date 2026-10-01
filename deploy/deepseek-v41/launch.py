@@ -108,6 +108,8 @@ def main() -> None:
     if not args.execute:
         print(json.dumps({"command": command, "qualification_status": "pending"}))
         return
+    if config["VLLM_IMAGE_ID"] == "sha256:10b3c8fe9c38f6e87dfef21c8d0e457f76ab89b32892bb37a056375b25ddbf85":
+        raise RuntimeError("known failed compiler preflight; rebuild, scan and repin before execution")
     verify_checkpoint(model, config)
     # Fail before allocating: only the already built immutable image is eligible.
     subprocess.run(["docker", "image", "inspect", config["VLLM_IMAGE_ID"]],
