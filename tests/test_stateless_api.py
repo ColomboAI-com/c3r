@@ -212,6 +212,55 @@ class StatelessAPITests(unittest.TestCase):
         self.assertEqual((status, body["error"]), (503, "service_unavailable"))
         self.assertEqual(calls, [])
 
+    def test_hosted_text_generation_cannot_transfer_local_only_state(self):
+        calls = []
+        def hosted_transport(*args):
+            calls.append(args)
+            return TransportResponse(200, {"choices": [{"message": {"content": "ready"},
+                                                       "finish_reason": "stop"}]}, 10)
+        provider = ProviderAdapter(ProviderConfig(
+            "hosted", ProviderKind.OPENAI_COMPATIBLE, "https://openrouter.ai/api/v1",
+            "deepseek/deepseek-v4.1-flash", "test-not-a-secret"), transport=hosted_transport)
+        runtime, _ = controller(deliberative=True)
+        factory = ReadOnlyRequestFactory(definitions=(ActionDefinition(
+            "DELIBERATE", ActionFamily.DELIBERATE, "compute", "generate",
+            RiskClass.READ_ONLY, ((),), ("local",), ("policy",), 0, 0,
+        ),), policy=AuthorityPolicy(frozenset({ActionFamily.DELIBERATE}),
+                                   frozenset({RiskClass.READ_ONLY})),
+        estimate_source=lambda _: {}, remaining_usd=0, data_boundary="local")
+        self.server.responses = ResponsesService(runtime, factory, provider)
+        status, body = self.call("/v1/responses", payload={
+            "model": "c3r-core", "input": "Local-only synthetic state"})
+        self.assertEqual((status, body["error"]), (503, "service_unavailable"))
+        self.assertEqual(calls, [])
+
+    def test_approved_hosted_responses_enforces_zero_retention_routing(self):
+        observed = []
+        def hosted_transport(url, headers, payload):
+            observed.append(payload)
+            return TransportResponse(200, {"choices": [{"message": {"content": "ready"},
+                                                       "finish_reason": "stop"}],
+                                           "usage": {"prompt_tokens": 5, "completion_tokens": 2,
+                                                     "cost": 0.000001}}, 10)
+        provider = ProviderAdapter(ProviderConfig(
+            "openrouter-deepseek", ProviderKind.OPENAI_COMPATIBLE, "https://openrouter.ai/api/v1",
+            "deepseek/deepseek-v4.1-flash", "test-not-a-secret"), transport=hosted_transport)
+        runtime, _ = controller(deliberative=True)
+        factory = ReadOnlyRequestFactory(definitions=(ActionDefinition(
+            "DELIBERATE", ActionFamily.DELIBERATE, "compute", "generate",
+            RiskClass.READ_ONLY, ((),), ("hosted",), ("policy",), 0, 0,
+            data_boundary="approved_remote",
+        ),), policy=AuthorityPolicy(frozenset({ActionFamily.DELIBERATE}),
+                                   frozenset({RiskClass.READ_ONLY})),
+        estimate_source=lambda _: {}, remaining_usd=0, data_boundary="approved_remote")
+        self.server.responses = ResponsesService(runtime, factory, provider)
+        status, body = self.call("/v1/responses", payload={"model": "c3r-core", "input": "ready"})
+        self.assertEqual(status, 200)
+        self.assertEqual(observed[0]["provider"], {"zdr": True, "data_collection": "deny",
+                                                 "require_parameters": True, "allow_fallbacks": False})
+        self.assertEqual(body["c3r"]["observed_provider_cost_usd"], 0.000001)
+        self.assertFalse(body["store"])
+
     def test_new_paths_require_authentication(self):
         for path in ("/v1/c3r/decide", "/v1/c3r/execute", "/v1/responses"):
             status, body = self.call(path, token="wrong", payload={"goal": "Find record"})
