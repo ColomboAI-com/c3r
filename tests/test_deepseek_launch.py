@@ -1,11 +1,11 @@
 """Regression checks at the canonical launcher CLI boundary."""
 
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 
 class DeepSeekLaunchTests(unittest.TestCase):
