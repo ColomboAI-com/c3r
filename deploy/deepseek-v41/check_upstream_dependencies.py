@@ -16,7 +16,7 @@ expected = {"vllm": "0.30.1rc1.dev396+gac68c3087",
 if versions != expected:
     raise RuntimeError("Pinned upstream dependency identities changed")
 result = subprocess.run([sys.executable, "-m", "pip", "check"],
-                        capture_output=True, text=True)
+                        capture_output=True, text=True, check=False)
 known = ('torch 2.13.0+cu130 has requirement nvidia-nccl-cu13==2.29.7; '
          'platform_system == "Linux", but you have nvidia-nccl-cu13 2.30.7.')
 if result.returncode != 1 or result.stdout.strip().splitlines() != [known] or result.stderr.strip():

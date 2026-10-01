@@ -121,9 +121,9 @@ def main() -> None:
         total, free = map(int, row.split(","))
         if free < total * float(config["GPU_MEMORY_UTILIZATION"]) + int(config["MIN_GPU_FREE_MIB"]):
             raise RuntimeError("insufficient co-resident headroom; do not overlap model engines")
-    memory = dict((line.split(":")[0], int(line.split()[1]))
-                  for line in Path("/proc/meminfo").read_text().splitlines()
-                  if line.split(":")[0] in {"MemTotal", "MemAvailable", "SwapTotal", "SwapFree"})
+    memory = {line.split(":")[0]: int(line.split()[1])
+              for line in Path("/proc/meminfo").read_text().splitlines()
+              if line.split(":")[0] in {"MemTotal", "MemAvailable", "SwapTotal", "SwapFree"}}
     if (memory["MemAvailable"] < int(config["HOST_RAM_LIMIT_GIB"]) * 1024**2 + memory["MemTotal"] * .2
             or memory["SwapTotal"] != memory["SwapFree"]):
         raise RuntimeError("host-RAM reserve or no-swap gate failed")
