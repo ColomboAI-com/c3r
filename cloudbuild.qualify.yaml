@@ -84,11 +84,11 @@ steps:
     args: [image, --no-progress, --exit-code, '1', --severity, 'HIGH,CRITICAL', 'c3r-api:qualification']
   - name: aquasec/trivy:0.74.0
     id: clm-security
-    waitFor: [clm-image]
+    waitFor: [clm-image, api-security]
     args: [image, --no-progress, --exit-code, '1', --severity, 'HIGH,CRITICAL', 'c3r-clm:qualification']
   - name: aquasec/trivy:0.74.0
     id: deepseek-security
-    waitFor: [deepseek-image]
+    waitFor: [deepseek-image, clm-security]
     args: [image, --no-progress, --exit-code, '1', --severity, 'HIGH,CRITICAL', 'c3r-deepseek:qualification']
 options:
   diskSizeGb: 200
