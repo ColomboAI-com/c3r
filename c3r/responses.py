@@ -23,6 +23,8 @@ class TextDeliberator:
         self.provider, self.maximum = provider, maximum
 
     def deliberate(self, state: CompiledState) -> TextGenerationResult:
+        if not self.provider.config.is_local and state.data_boundary not in {"approved_remote", "public"}:
+            raise ValueError("state is not approved for hosted generation")
         return TextGenerationResult(*self.provider.generate(state.goal, self.maximum))
 
 
@@ -62,7 +64,7 @@ class ResponsesService:
         output, finish, usage = (decision.deliberation.text, decision.deliberation.finish,
                                 decision.deliberation.usage)
         identifier = "resp_" + uuid4().hex
-        return {
+        response: dict[str, object] = {
             "id": identifier, "object": "response", "model": "c3r-core",
             "status": "completed" if finish == "stop" else "incomplete", "store": False,
             "output": [{"id": "msg_" + uuid4().hex, "type": "message", "role": "assistant",
@@ -76,3 +78,8 @@ class ResponsesService:
                     "selection_basis": "explicit_text_only_request_policy_fallback",
                     "calibrated": False, "provider": self.provider.config.provider_id},
         }
+        if "provider_cost_usd" in usage:
+            metadata = response["c3r"]
+            assert isinstance(metadata, dict)
+            metadata["observed_provider_cost_usd"] = usage["provider_cost_usd"]
+        return response

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from math import isfinite
 from typing import Protocol, cast
@@ -34,7 +34,7 @@ class ProviderConfig:
     kind: ProviderKind
     base_url: str
     model: str
-    api_key: str | None
+    api_key: str | None = field(repr=False)
     timeout_seconds: float = 60.0
 
     def __post_init__(self) -> None:
@@ -48,6 +48,14 @@ class ProviderConfig:
             raise ValueError("provider_id and model are required")
         if not isfinite(self.timeout_seconds) or not 0 < self.timeout_seconds <= 120:
             raise ValueError("timeout_seconds must be positive")
+
+    @property
+    def is_local(self) -> bool:
+        return urlparse(self.base_url).hostname in {"localhost", "127.0.0.1", "::1"}
+
+    @property
+    def uses_openrouter(self) -> bool:
+        return self.base_url.rstrip("/") == "https://openrouter.ai/api/v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -257,16 +265,22 @@ class ProviderAdapter:
         headers = {"X-C3R-Timeout": str(self.config.timeout_seconds)}
         if self.config.api_key:
             headers["Authorization"] = "Bearer " + self.config.api_key
-        try:
-            response = self._transport(self.config.base_url.rstrip("/") + "/chat/completions",
-                                   headers, {
+        payload: dict[str, object] = {
             "model": self.config.model, "max_tokens": max_output_tokens, "temperature": 0,
             "messages": [
                 {"role": "system", "content": "Provide a helpful final answer only. Do not expose "
                  "private reasoning or claim to execute tools, commit actions, or grant authority."},
                 {"role": "user", "content": text},
             ],
-            })
+        }
+        if self.config.uses_openrouter:
+            if not self.config.api_key:
+                raise RuntimeError("hosted provider credential unavailable")
+            payload["provider"] = {"zdr": True, "data_collection": "deny",
+                                   "require_parameters": True, "allow_fallbacks": False}
+        try:
+            response = self._transport(self.config.base_url.rstrip("/") + "/chat/completions",
+                                       headers, payload)
             size = len(json.dumps(response.body, allow_nan=False).encode())
         except (OSError, ValueError, TypeError) as error:
             raise RuntimeError("generative provider transport unavailable") from error
@@ -284,11 +298,16 @@ class ProviderAdapter:
             if not output.strip() or reason not in {"stop", "length"}:
                 raise ValueError("invalid generation result")
             usage = cast(Mapping[str, object], response.body.get("usage", {}))
-            return output, cast(str, reason), {
+            observed = {
                 "input_tokens": _number(usage.get("prompt_tokens")),
                 "output_tokens": _number(usage.get("completion_tokens")),
                 "latency_ms": response.latency_ms,
             }
+            cost = usage.get("cost")
+            if (isinstance(cost, (int, float)) and not isinstance(cost, bool)
+                    and isfinite(cost) and cost >= 0):
+                observed["provider_cost_usd"] = float(cost)
+            return output, cast(str, reason), observed
         except (KeyError, IndexError, TypeError, ValueError, AttributeError) as error:
             raise RuntimeError("invalid generative provider response") from error
 

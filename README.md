@@ -50,8 +50,9 @@ See the [scope-specific release policy](docs/release-policy.md).
 
 C3R's default **deliberative** language model is
 [`deepseek-ai/DeepSeek-V4.1-Flash`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash)
-(MIT). The hosted default uses `deepseek/deepseek-v4.1-flash` through OpenRouter; the
-official DeepSeek API alias is `deepseek-flash`. CLM is the default separate
+(MIT), self-hosted on the existing eight-H100 node alongside Qwen3-8B/CLM.
+The default provider uses the private loopback `/model` alias; no OpenRouter or
+hosted inference provider is part of the production target. CLM is the default separate
 System-One decision engine; Laya remains optional. DeepSeek recommendations
 remain subject to the same verifier and
 trusted commit boundary as every other candidate.
@@ -60,6 +61,14 @@ The official checkpoint has passed a private 8×H100 GCP serving smoke test and 
 up in a private GCS bucket. Its vLLM endpoint is bound to localhost; this is **not** a
 public C3R service or end-to-end production qualification. The checkpoint's active
 parameter count does not imply it fits on one GPU.
+
+The recovered **older** serving image passed all 13 private C3R checks at 85%
+GPU reservation with Qwen still running. The clean, pinned newer image is a
+separate qualification target: its first startup rejected an obsolete flag.
+The corrected launch configuration is tracked in
+[`deploy/deepseek-v41`](deploy/deepseek-v41/README.md). Repeated cold starts,
+sustained mixed load, outage/rollback, final-head builds, TLS and canary remain
+required; recovery alone is not production qualification.
 
 ## Why C3R
 
@@ -182,7 +191,8 @@ CLM ranks bounded, policy-surviving candidate labels and fixed typed questions.
 Its raw ranking is advisory, not an action selection. Missing calibration,
 malformed responses, outages, or timeouts lead to abstention or deterministic
 fallback. CVoC, independent verification, and the commit boundary retain
-authority. No live CLM service, GPU coexistence benchmark, or held-out C3R
+authority. Private live CLM ranking and co-resident DeepSeek recovery have been
+observed; neither sustained GPU coexistence qualification nor held-out C3R
 calibration is claimed by this code change.
 
 ## Laya integration
