@@ -1,0 +1,111 @@
+# No local source upload: fetch and verify the exact public commit/tree.
+# This is build/scan qualification, NOT GPU startup or release approval.
+substitutions:
+  _SOURCE_COMMIT: ''
+  _SOURCE_TREE: ''
+steps:
+  - name: gcr.io/cloud-builders/git
+    id: exact-source
+    entrypoint: sh
+    args:
+      - -c
+      - >-
+        test "$${#COMMIT}" = 40
+        && case "$$COMMIT" in *[!0-9a-f]*) exit 1;; esac
+        && git init /workspace/source
+        && git -C /workspace/source remote add origin https://github.com/ColomboAI-com/c3r.git
+        && git -C /workspace/source fetch --depth=1 origin "$$COMMIT"
+        && git -C /workspace/source checkout --detach FETCH_HEAD
+        && test "$$(git -C /workspace/source rev-parse HEAD)" = "$$COMMIT"
+        && test "$$(git -C /workspace/source rev-parse 'HEAD^{tree}')" = "$$TREE"
+    env: ['COMMIT=${_SOURCE_COMMIT}', 'TREE=${_SOURCE_TREE}']
+  - name: python:3.11-alpine3.24
+    id: unit-311
+    dir: source
+    waitFor: [exact-source]
+    entrypoint: python
+    args: [-m, unittest, discover, -s, tests, -v]
+  - name: python:3.12-alpine3.23
+    id: unit-312
+    dir: source
+    waitFor: [exact-source]
+    entrypoint: python
+    args: [-m, unittest, discover, -s, tests, -v]
+  - name: python:3.13-alpine3.23
+    id: unit-313
+    dir: source
+    waitFor: [exact-source]
+    entrypoint: python
+    args: [-m, unittest, discover, -s, tests, -v]
+  # Both SDKs execute in one disposable CPU-only test container. No GPU VM
+  # packages or services are changed by these test-environment installs.
+  - name: node:24-alpine
+    id: official-sdk-acceptance
+    dir: source
+    waitFor: [exact-source]
+    entrypoint: sh
+    args:
+      - -c
+      - >-
+        apk add --no-cache python3 py3-pip
+        && python3 -m venv /workspace/sdk-python
+        && /workspace/sdk-python/bin/python -m pip install 'openai==3.24.0'
+        && npm install --prefix /workspace/sdk-js 'openai@7.27.0' --ignore-scripts --no-audit --no-fund
+        && /workspace/sdk-python/bin/python -m unittest tests.test_official_sdk_acceptance -v
+    env: ['C3R_JS_SDK_MODULE=/workspace/sdk-js/node_modules/openai/index.mjs']
+  - name: gcr.io/cloud-builders/git
+    id: clm-source
+    dir: source
+    waitFor: [exact-source]
+    entrypoint: sh
+    args:
+      - -c
+      - >-
+        git clone --no-checkout https://github.com/Contrastive-LM/CLM.git /workspace/clm-upstream
+        && test "$$(git -C /workspace/clm-upstream rev-parse bb42c6c5bf914fd449bed2f6ca65be80602cb1f7^{commit})" = bb42c6c5bf914fd449bed2f6ca65be80602cb1f7
+        && git -C /workspace/clm-upstream archive --format=tar
+        --output=/workspace/source/deploy/clm-source-bb42c6c.tar bb42c6c5bf914fd449bed2f6ca65be80602cb1f7
+  - name: gcr.io/cloud-builders/docker
+    id: api-image
+    dir: source
+    waitFor: [unit-311, unit-312, unit-313, official-sdk-acceptance]
+    args: [build, --pull, --file, Dockerfile, --tag, 'c3r-api:qualification', .]
+  - name: gcr.io/cloud-builders/docker
+    id: clm-image
+    dir: source
+    waitFor: [clm-source]
+    args: [build, --pull, --file, deploy/Dockerfile.clm-hardened, --tag, 'c3r-clm:qualification', deploy]
+  - name: gcr.io/cloud-builders/docker
+    id: deepseek-image
+    dir: source
+    waitFor: [exact-source]
+    args: [build, --pull, --file, deploy/deepseek-v41/Dockerfile, --tag, 'c3r-deepseek:qualification', deploy/deepseek-v41]
+  - name: python:3.13-alpine3.23
+    id: serving-config-validation
+    dir: source
+    waitFor: [exact-source]
+    entrypoint: python
+    args: [deploy/deepseek-v41/launch.py, --model-path, /private/model, --cache-path, /private/cache, --server-args]
+  - name: gcr.io/cloud-builders/docker
+    id: api-import
+    waitFor: [api-image]
+    args: [run, --rm, 'c3r-api:qualification', python, -c, 'import c3r.serve']
+  - name: gcr.io/cloud-builders/docker
+    id: clm-import
+    waitFor: [clm-image]
+    args: [run, --rm, --entrypoint, python3, 'c3r-clm:qualification', -c, 'from clm.engine import Engine; from clm.server import create_app']
+  - name: aquasec/trivy:0.74.0
+    id: api-security
+    waitFor: [api-image]
+    args: [image, --no-progress, --exit-code, '1', --severity, 'HIGH,CRITICAL', 'c3r-api:qualification']
+  - name: aquasec/trivy:0.74.0
+    id: clm-security
+    waitFor: [clm-image, api-security]
+    args: [image, --no-progress, --exit-code, '1', --severity, 'HIGH,CRITICAL', 'c3r-clm:qualification']
+  - name: aquasec/trivy:0.74.0
+    id: deepseek-security
+    waitFor: [deepseek-image, clm-security]
+    args: [image, --no-progress, --exit-code, '1', --severity, 'HIGH,CRITICAL', 'c3r-deepseek:qualification']
+options:
+  diskSizeGb: 200
+timeout: 3600s

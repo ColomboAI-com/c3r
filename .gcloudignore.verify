@@ -1,0 +1,16 @@
+# Separate verification upload: source and synthetic tests only.
+# Never upload local evidence, credentials, trace rows, papers, or Git metadata.
+**
+!Dockerfile
+!Dockerfile.retention
+!cloudbuild.verify.yaml
+!.dockerignore
+!c3r/
+!c3r/**
+!tests/
+!tests/**
+!scripts/
+!scripts/run_controlled_pairs.py
+!scripts/run_trace_control_dry_run.py
+**/__pycache__/
+**/*.pyc
