@@ -1,5 +1,26 @@
 # C3R Core API v1: stateless inference contract
 
+## Optional internal maintenance readiness channel
+
+The new channel is code-only until separately deployed and qualified. Configure
+`C3R_INTERNAL_READY_PORT` and a distinct `C3R_INTERNAL_READY_TOKEN` to start an
+additional listener in the same Core process, bound only to `127.0.0.1`.
+`GET /internal/ready` requires its own Bearer token; the public ingress does not
+forward this route. It uses fresh CLM/Qwen and DeepSeek probes, not cached public
+readiness. Authentication or any missing/failed check keeps recovery unqualified.
+
+The production host also requires `C3R_INTERNAL_ARTIFACT_MANIFEST` and its
+independently supplied `C3R_INTERNAL_ARTIFACT_MANIFEST_SHA256`. The pinned JSON
+schema is `{"schema":"c3r-required-local-files-v1","files":[{"path":"/absolute/file",
+"sha256":"<64 lowercase hex characters>","max_bytes":123}]}`. The nonempty list
+allows at most 32 non-linked regular files and at most 64 MiB combined declared
+byte limits; the manifest itself is limited to 64 KiB. Files are hashed freshly.
+The response binds the manifest SHA and explicitly scopes verification to these
+local files. Hashing a weight receipt proves only that receipt, **not DeepSeek
+weights**. The deployment operator must independently approve the required-file
+inventory, bind actual model mounts/images, and verify listener ownership and
+root-controlled credential delivery before maintenance can rely on it.
+
 This is a **separate release scope** from governed research collection. It may
 serve read-only, verified recommendations using the upstream CLM ranker without
 C3R-trained weights or an empirical DecisionMix release. It does **not** confer

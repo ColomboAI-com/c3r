@@ -17,6 +17,7 @@ from threading import Lock
 from typing import Protocol, cast
 
 from .deliberative.envelope import DeliberativeResult
+from .internal_readiness import ReadinessProbe
 from .responses import ResponsesService
 from .runtime import RuntimeRequest, StandaloneController
 from .system_one.inference import SystemOneInference
@@ -88,6 +89,7 @@ class C3RHTTPServer(ThreadingHTTPServer):
         requests_per_minute: int = 60,
         system_one: SystemOneInference | None = None,
         responses: ResponsesService | None = None,
+        internal_readiness: ReadinessProbe | None = None,
     ) -> None:
         if host not in {"127.0.0.1", "::1", "localhost"}:
             raise ValueError("C3R must bind to loopback behind a TLS gateway")
@@ -98,6 +100,7 @@ class C3RHTTPServer(ThreadingHTTPServer):
         self.runtime = runtime
         self.system_one = system_one
         self.responses = responses
+        self.internal_readiness = internal_readiness
         self.request_factory = request_factory
         self.bearer_token = bearer_token
         self.limiter = TokenBucket(

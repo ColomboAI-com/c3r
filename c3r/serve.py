@@ -16,6 +16,7 @@ from typing import Protocol, cast
 from .host_components import HostComponents
 from .http_service import C3RHTTPServer, RequestFactory
 from .ingress_proxy import C3RIngressServer
+from .internal_readiness import InternalReadinessServer
 from .runtime import StandaloneController
 
 
@@ -97,6 +98,7 @@ def build_servers(
         port=backend_port,
         system_one=components.system_one if isinstance(components, HostComponents) else None,
         responses=components.responses if isinstance(components, HostComponents) else None,
+        internal_readiness=components.internal_readiness if isinstance(components, HostComponents) else None,
     )
     try:
         ingress = C3RIngressServer(
@@ -113,8 +115,30 @@ def build_servers(
     return backend, ingress
 
 
+def build_internal_server(values: Mapping[str, str],
+                          backend: C3RHTTPServer) -> InternalReadinessServer | None:
+    """Opt-in separate maintenance binding; never forwarded by the public gateway."""
+    enabled = "C3R_INTERNAL_READY_PORT" in values or "C3R_INTERNAL_READY_TOKEN" in values
+    if not enabled:
+        return None
+    token = _required(values, "C3R_INTERNAL_READY_TOKEN")
+    _required(values, "C3R_INTERNAL_READY_PORT")
+    port = _port(values, "C3R_INTERNAL_READY_PORT", 8091)
+    if (port in {backend.server_port, _port(values, "PORT", 8080)}
+            or token in {_required(values, "C3R_CLIENT_TOKEN"),
+                         _required(values, "C3R_BACKEND_TOKEN")}):
+        raise ValueError("internal readiness must use a separate port and token")
+    return InternalReadinessServer(token=token, port=port, probe=backend.internal_readiness)
+
+
 def main() -> None:
     backend, ingress = build_servers(os.environ)
+    try:
+        internal = build_internal_server(os.environ, backend)
+    except BaseException:
+        ingress.server_close()
+        backend.server_close()
+        raise
     stop = threading.Event()
 
     def request_stop(_signum: int, _frame: object) -> None:
@@ -126,19 +150,31 @@ def main() -> None:
     ingress_thread = threading.Thread(target=ingress.serve_forever, daemon=True)
     backend_started = False
     ingress_started = False
+    internal_thread = (threading.Thread(target=internal.serve_forever, daemon=True)
+                       if internal is not None else None)
+    internal_started = False
     try:
         backend_thread.start()
         backend_started = True
         ingress_thread.start()
         ingress_started = True
+        if internal_thread is not None:
+            internal_thread.start()
+            internal_started = True
         stop.wait()
     finally:
+        if internal_started and internal is not None:
+            internal.shutdown()
         if ingress_started:
             ingress.shutdown()
         if backend_started:
             backend.shutdown()
         ingress.server_close()
         backend.server_close()
+        if internal is not None:
+            internal.server_close()
+        if internal_started and internal_thread is not None:
+            internal_thread.join(timeout=5)
         if ingress_started:
             ingress_thread.join(timeout=5)
         if backend_started:
