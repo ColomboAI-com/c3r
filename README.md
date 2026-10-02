@@ -46,6 +46,11 @@ fallback; it does not claim positive learned CVoC or expose private reasoning.
 The first public hostname is a dedicated C3R endpoint, not an MC-1 integration.
 See the [scope-specific release policy](docs/release-policy.md).
 
+The [developer API guide](docs/developer-api.md) covers SDK examples, scoped keys,
+tenancy, streaming, limits and privacy for the integration candidate. The
+[branch reconciliation record](docs/release-reconciliation.md) explains how the
+production and readiness histories were joined without losing reviewed source.
+
 ### Default language model
 
 C3R's default **deliberative** language model is

@@ -3,6 +3,7 @@ import os
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -53,10 +54,13 @@ class ServeTests(unittest.TestCase):
         self.assertIn("C3R_INTERNAL_READY_PORT", result.stderr)
 
     def test_module_entrypoint_starts_production_host_without_claiming_provider_readiness(self):
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
         values = config()
         values.update({
             "C3R_HOST_ENTRYPOINT": "c3r.production_host:build",
             "C3R_MODE": "production_inference", "C3R_ENABLED": "true",
+            "C3R_API_ACCESS_DB": os.path.join(scratch.name, "access.sqlite3"),
             "C3R_SYSTEM_ONE": "true", "C3R_DELIBERATIVE": "true",
             "C3R_SYSTEM_ONE_PROVIDER": "clm", "C3R_TRACE_COLLECTION": "false",
             "C3R_ONLINE_LEARNING": "false", "C3R_INGRESS_HOST": "127.0.0.1",
@@ -93,6 +97,18 @@ class ServeTests(unittest.TestCase):
         finally:
             process.terminate()
             process.communicate(timeout=5)
+
+    def test_production_entrypoint_requires_key_mode_database_before_binding(self):
+        values = config()
+        values.update({"C3R_HOST_ENTRYPOINT": "c3r.production_host:build",
+                       "C3R_MODE": "production_inference", "C3R_ENABLED": "true",
+                       "C3R_SYSTEM_ONE": "true", "C3R_SYSTEM_ONE_PROVIDER": "clm",
+                       "C3R_DELIBERATIVE": "true", "C3R_CLM_CONTAINER_DIGEST": "sha256:" + "a" * 64})
+        result = subprocess.run([sys.executable, "-m", "c3r.serve"],
+                                env={**os.environ, **values}, capture_output=True,
+                                text=True, timeout=5)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("C3R_API_ACCESS_DB", result.stderr)
 
     def test_missing_host_or_secret_fails_before_binding(self):
         values = config()

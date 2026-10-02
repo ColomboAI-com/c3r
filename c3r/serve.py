@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import importlib
 import os
+import secrets
 import signal
 import threading
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Protocol, cast
 
+from .api_access import AccessStore
 from .host_components import HostComponents
 from .http_service import C3RHTTPServer, RequestFactory
 from .ingress_proxy import C3RIngressServer
@@ -61,7 +64,10 @@ def build_servers(
 ) -> tuple[C3RHTTPServer, C3RIngressServer]:
     """Validate configuration before binding a public interface."""
     reference = _required(values, "C3R_HOST_ENTRYPOINT")
-    client_token = _required(values, "C3R_CLIENT_TOKEN")
+    client_token = values.get("C3R_CLIENT_TOKEN", "")
+    configured_mode = values.get("C3R_MODE", "staging")
+    if values.get("C3R_API_AUTH_MODE", "keys" if configured_mode == "production_inference" else "static_staging") == "static_staging":
+        client_token = _required(values, "C3R_CLIENT_TOKEN")
     backend_token = _required(values, "C3R_BACKEND_TOKEN")
     port = _port(values, "PORT", 8080)
     backend_port = _port(values, "C3R_BACKEND_PORT", 8081)
@@ -91,6 +97,15 @@ def build_servers(
             raise ValueError("production inference requires decisions enabled")
         if not runtime.system_one_enabled:
             raise ValueError("production inference requires an enabled System-One path")
+    auth_mode = values.get("C3R_API_AUTH_MODE", "keys" if mode == "production_inference" else "static_staging")
+    if auth_mode not in {"keys", "static_staging"} or (mode == "production_inference" and auth_mode != "keys"):
+        raise ValueError("production inference requires API key authentication")
+    access_store = (AccessStore(Path(_required(values, "C3R_API_ACCESS_DB")))
+                    if auth_mode == "keys" else None)
+    if access_store is None:
+        client_token = _required(values, "C3R_CLIENT_TOKEN")
+    elif not client_token:
+        client_token = secrets.token_urlsafe(32)  # Unused by key mode; never an accepted client credential.
     backend = C3RHTTPServer(
         runtime=runtime,
         request_factory=factory,
@@ -108,6 +123,7 @@ def build_servers(
             port=port,
             host=ingress_host,
             upstream_timeout_seconds=65 if mode == "production_inference" else 5,
+            access_store=access_store,
         )
     except BaseException:
         backend.server_close()
@@ -127,7 +143,7 @@ def build_internal_server(values: Mapping[str, str],
     _required(values, "C3R_INTERNAL_READY_PORT")
     port = _port(values, "C3R_INTERNAL_READY_PORT", 8091)
     if (port in {backend.server_port, _port(values, "PORT", 8080)}
-            or token in {_required(values, "C3R_CLIENT_TOKEN"),
+            or token in {values.get("C3R_CLIENT_TOKEN", ""),
                          _required(values, "C3R_BACKEND_TOKEN")}):
         raise ValueError("internal readiness must use a separate port and token")
     return InternalReadinessServer(token=token, port=port, probe=backend.internal_readiness,

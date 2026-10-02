@@ -67,6 +67,7 @@ class RuntimeOutcome:
     candidate_ids: tuple[str, ...] = ()
     fast_path: FastPathDecision | None = None
     deliberation: object | None = None
+    cvoc_lower_bound: float | None = None
 
 
 class StandaloneController:
@@ -188,6 +189,7 @@ class StandaloneController:
                 candidate_ids=candidate_ids,
                 fast_path=fast,
                 deliberation=deliberation,
+                cvoc_lower_bound=lower_bound,
             )
 
         if not self._flags.enabled_requested:

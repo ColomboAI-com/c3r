@@ -8,17 +8,19 @@ from __future__ import annotations
 
 import hmac
 import json
+import select
+import socket
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, is_dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from math import isfinite
-from threading import Lock
+from threading import BoundedSemaphore, Event, Lock, Thread
 from typing import Protocol, cast
 
 from .deliberative.envelope import DeliberativeResult
 from .internal_readiness import ReadinessProbe
-from .responses import ResponsesService
+from .responses import ResponseEventStream, ResponsesService
 from .runtime import RuntimeRequest, StandaloneController
 from .system_one.inference import SystemOneInference
 
@@ -75,6 +77,10 @@ class ServiceMetrics:
             return dict(self._counts)
 
 
+class ClientDisconnected(Exception):
+    """A cancelled stream needs cleanup, not an attempted error response."""
+
+
 class C3RHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
 
@@ -90,6 +96,7 @@ class C3RHTTPServer(ThreadingHTTPServer):
         system_one: SystemOneInference | None = None,
         responses: ResponsesService | None = None,
         internal_readiness: ReadinessProbe | None = None,
+        max_concurrent_generations: int = 4,
     ) -> None:
         if host not in {"127.0.0.1", "::1", "localhost"}:
             raise ValueError("C3R must bind to loopback behind a TLS gateway")
@@ -97,9 +104,12 @@ class C3RHTTPServer(ThreadingHTTPServer):
             raise ValueError("bearer token must have at least 32 characters")
         if runtime.effect_execution_enabled:
             raise ValueError("the HTTP service cannot execute external effects")
+        if max_concurrent_generations < 1:
+            raise ValueError("generation capacity must be positive")
         self.runtime = runtime
         self.system_one = system_one
         self.responses = responses
+        self.generation_capacity = BoundedSemaphore(max_concurrent_generations)
         self.internal_readiness = internal_readiness
         self.request_factory = request_factory
         self.bearer_token = bearer_token
@@ -112,9 +122,9 @@ class C3RHTTPServer(ThreadingHTTPServer):
 
 
 class _Handler(BaseHTTPRequestHandler):
-    server: C3RHTTPServer
+    server: C3RHTTPServer  # pyright: ignore[reportIncompatibleVariableOverride]
 
-    def log_message(self, _format: str, *_args: object) -> None:
+    def log_message(self, format: str, *_args: object) -> None:
         # The host exports aggregate metrics; request bodies and tokens are never logged.
         return
 
@@ -131,6 +141,105 @@ class _Handler(BaseHTTPRequestHandler):
         expected = "Bearer " + self.server.bearer_token
         supplied = self.headers.get_all("Authorization", [])
         return len(supplied) == 1 and hmac.compare_digest(expected.encode(), supplied[0].encode())
+
+    def _open_stream(self, payload: Mapping[str, object]) -> ResponseEventStream:
+        """Cancel even while the generation backend has not sent headers yet."""
+        assert self.server.responses is not None
+        cancelled, finished = Event(), Event()
+
+        def watch_opening() -> None:
+            while not finished.wait(0.05):
+                try:
+                    readable, _, _ = select.select([self.connection], [], [], 0)
+                    if readable:
+                        cancelled.set()
+                        self.server.metrics.increment("stream_disconnect")
+                        return
+                except (OSError, ValueError):
+                    cancelled.set()
+                    return
+
+        watcher = Thread(target=watch_opening, daemon=True)
+        watcher.start()
+        try:
+            events = self.server.responses.stream(payload, cancelled=cancelled)
+            if cancelled.is_set():
+                events.close()
+                raise ClientDisconnected
+            return events
+        except RuntimeError:
+            if cancelled.is_set():
+                self.close_connection = True
+                raise ClientDisconnected from None
+            raise
+        finally:
+            finished.set()
+            watcher.join(timeout=0.2)
+
+    def _send_stream(self, events: ResponseEventStream) -> None:
+        stop_watch = Event()
+        client_gone = Event()
+        released = False
+        release_lock = Lock()
+        watcher: Thread | None = None
+
+        def record_disconnect() -> None:
+            with release_lock:
+                if not client_gone.is_set():
+                    client_gone.set()
+                    self.server.metrics.increment("stream_disconnect")
+
+        def release_capacity() -> None:
+            nonlocal released
+            with release_lock:
+                if not released:
+                    released = True
+                    self.server.generation_capacity.release()
+
+        def watch_disconnect() -> None:
+            while not stop_watch.is_set():
+                try:
+                    readable, _, _ = select.select([self.connection], [], [], 0.1)
+                    if readable:
+                        # A stream is one request per connection; any further
+                        # client bytes or a closed socket aborts that stream.
+                        self.connection.recv(1, socket.MSG_PEEK)
+                        record_disconnect()
+                        events.abort()
+                        release_capacity()
+                        return
+                except OSError:
+                    record_disconnect()
+                    events.abort()
+                    release_capacity()
+                    return
+
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Accel-Buffering", "no")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.close_connection = True
+            watcher = Thread(target=watch_disconnect, daemon=True)
+            watcher.start()
+            for name, data in events:
+                if client_gone.is_set():
+                    break
+                frame = ("event: " + name + "\n" + "data: "
+                         + json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+                         + "\n\n").encode("utf-8")
+                self.wfile.write(frame)
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            record_disconnect()
+        finally:
+            stop_watch.set()
+            events.close()
+            if watcher is not None:
+                watcher.join(timeout=0.5)
+            release_capacity()
 
     def do_GET(self) -> None:
         if self.path == "/health":
@@ -208,9 +317,25 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
-                raise ValueError("JSON object required")
+                raise TypeError("JSON object required")
+            payload = cast(dict[str, object], payload)
             if self.path == "/v1/responses" and self.server.responses:
-                response = self.server.responses.respond(cast(dict[str, object], payload))
+                if not self.server.generation_capacity.acquire(blocking=False):
+                    self._send(429, {"error": "capacity_exceeded"})
+                    return
+                if payload.get("stream") is True:
+                    try:
+                        events = self._open_stream(payload)
+                    except BaseException:
+                        self.server.generation_capacity.release()
+                        raise
+                    self.server.metrics.increment("text_responses")
+                    self._send_stream(events)
+                    return
+                try:
+                    response = self.server.responses.respond(payload)
+                finally:
+                    self.server.generation_capacity.release()
                 self.server.metrics.increment("text_responses")
                 self._send(200, response)
                 return
@@ -218,12 +343,15 @@ class _Handler(BaseHTTPRequestHandler):
                 if not (self.server.runtime.decision_enabled
                         and self.server.runtime.system_one_enabled):
                     raise RuntimeError("System-One disabled")
-                result = self.server.system_one.infer(cast(dict[str, object], payload))
+                result = self.server.system_one.infer(payload)
                 self.server.metrics.increment("system_one_inferences")
                 self._send(200, result)
                 return
-            request = self.server.request_factory.build(cast(dict[str, object], payload))
+            request = self.server.request_factory.build(payload)
             outcome = self.server.runtime.run(request)
+        except ClientDisconnected:
+            self.close_connection = True
+            return
         except (KeyError, TypeError, ValueError, RecursionError, json.JSONDecodeError):
             self.server.metrics.increment("invalid_request")
             self._send(400, {"error": "invalid_request"})
@@ -240,6 +368,8 @@ class _Handler(BaseHTTPRequestHandler):
             "reason": outcome.reason,
             "trace_hash": outcome.ledger_record.record_hash,
             "effect_executed": False,
+            "cvoc": {"selected_lower_bound": outcome.cvoc_lower_bound,
+                     "basis": "host_supplied_estimates"},
         }
         if self.path in {"/v1/c3r/rank", "/v1/system-one"}:
             result["abstained"] = outcome.fast_path is None or outcome.fast_path.abstained
