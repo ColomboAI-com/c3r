@@ -8,6 +8,10 @@ additional listener in the same Core process, bound only to `127.0.0.1`.
 `GET /internal/ready` requires its own Bearer token; the public ingress does not
 forward this route. It uses fresh CLM/Qwen and DeepSeek probes, not cached public
 readiness. Authentication or any missing/failed check keeps recovery unqualified.
+The runtime check also requires both actual backend and ingress serving workers
+to be alive before and after provider probing, and no shutdown request pending.
+This is a worker-liveness prerequisite, not proof that every API request works;
+the deployment acceptance and recovery drills remain separate requirements.
 
 The production host also requires `C3R_INTERNAL_ARTIFACT_MANIFEST` and its
 independently supplied `C3R_INTERNAL_ARTIFACT_MANIFEST_SHA256`. The pinned JSON

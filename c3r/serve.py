@@ -116,7 +116,9 @@ def build_servers(
 
 
 def build_internal_server(values: Mapping[str, str],
-                          backend: C3RHTTPServer) -> InternalReadinessServer | None:
+                          backend: C3RHTTPServer, *,
+                          api_workers: tuple[threading.Thread, ...] = (),
+                          stopping: threading.Event | None = None) -> InternalReadinessServer | None:
     """Opt-in separate maintenance binding; never forwarded by the public gateway."""
     enabled = "C3R_INTERNAL_READY_PORT" in values or "C3R_INTERNAL_READY_TOKEN" in values
     if not enabled:
@@ -128,31 +130,34 @@ def build_internal_server(values: Mapping[str, str],
             or token in {_required(values, "C3R_CLIENT_TOKEN"),
                          _required(values, "C3R_BACKEND_TOKEN")}):
         raise ValueError("internal readiness must use a separate port and token")
-    return InternalReadinessServer(token=token, port=port, probe=backend.internal_readiness)
+    return InternalReadinessServer(token=token, port=port, probe=backend.internal_readiness,
+                                   api_workers=api_workers, stopping=stopping)
 
 
 def main() -> None:
     backend, ingress = build_servers(os.environ)
+    stop = threading.Event()
+    backend_thread = threading.Thread(target=backend.serve_forever, daemon=True)
+    ingress_thread = threading.Thread(target=ingress.serve_forever, daemon=True)
     try:
-        internal = build_internal_server(os.environ, backend)
+        internal = build_internal_server(os.environ, backend,
+                                         api_workers=(backend_thread, ingress_thread), stopping=stop)
     except BaseException:
         ingress.server_close()
         backend.server_close()
         raise
-    stop = threading.Event()
 
     def request_stop(_signum: int, _frame: object) -> None:
         stop.set()
 
     signal.signal(signal.SIGTERM, request_stop)
     signal.signal(signal.SIGINT, request_stop)
-    backend_thread = threading.Thread(target=backend.serve_forever, daemon=True)
-    ingress_thread = threading.Thread(target=ingress.serve_forever, daemon=True)
     backend_started = False
     ingress_started = False
     internal_thread = (threading.Thread(target=internal.serve_forever, daemon=True)
                        if internal is not None else None)
     internal_started = False
+    worker_failure = False
     try:
         backend_thread.start()
         backend_started = True
@@ -161,13 +166,18 @@ def main() -> None:
         if internal_thread is not None:
             internal_thread.start()
             internal_started = True
-        stop.wait()
+        while not stop.wait(0.25):
+            if (not backend_thread.is_alive() or not ingress_thread.is_alive()
+                    or (internal_thread is not None and not internal_thread.is_alive())):
+                worker_failure = True
+                stop.set()
     finally:
-        if internal_started and internal is not None:
+        stop.set()
+        if internal_started and internal is not None and internal_thread is not None and internal_thread.is_alive():
             internal.shutdown()
-        if ingress_started:
+        if ingress_started and ingress_thread.is_alive():
             ingress.shutdown()
-        if backend_started:
+        if backend_started and backend_thread.is_alive():
             backend.shutdown()
         ingress.server_close()
         backend.server_close()
@@ -179,6 +189,8 @@ def main() -> None:
             ingress_thread.join(timeout=5)
         if backend_started:
             backend_thread.join(timeout=5)
+    if worker_failure:
+        raise RuntimeError("C3R serving worker exited unexpectedly")
 
 
 if __name__ == "__main__":

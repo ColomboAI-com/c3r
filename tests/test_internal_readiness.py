@@ -4,6 +4,7 @@ import json
 import tempfile
 import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import cast
 from urllib.error import HTTPError
@@ -16,8 +17,39 @@ TOKEN = "maintenance-test-token-with-more-than-thirty-two-characters"
 
 
 class InternalReadinessTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.api_servers = tuple(ThreadingHTTPServer(("127.0.0.1", 0), BaseHTTPRequestHandler)
+                                 for _ in range(2))
+        self.api_workers = tuple(threading.Thread(target=server.serve_forever, daemon=True)
+                                 for server in self.api_servers)
+        for worker in self.api_workers:
+            worker.start()
+
+    def tearDown(self) -> None:
+        for server, worker in zip(self.api_servers, self.api_workers):
+            if worker.is_alive():
+                server.shutdown()
+            server.server_close()
+            worker.join(timeout=2)
+
+    def test_stopped_api_worker_revokes_ready_even_when_provider_checks_are_positive(self):
+        report: dict[str, object] = {
+            "runtime": True, "clm_qwen": True, "deepseek": True,
+            "required_local_artifact_files": True,
+            "required_local_artifact_manifest_sha256": "a" * 64,
+        }
+        self.api_servers[0].shutdown()
+        self.api_workers[0].join(timeout=2)
+        status, body = self.call(InternalReadinessServer(
+            token=TOKEN, port=0, probe=lambda: report, api_workers=self.api_workers))
+        self.assertEqual((status, body["status"]), (503, "not_ready"))
+        self.assertFalse(cast(dict[str, object], body["checks"])["runtime"])
+
     def call(self, server: InternalReadinessServer, path: str = "/internal/ready", *,
-             token: str = TOKEN, method: str = "GET") -> tuple[int, dict[str, object]]:
+             token: str = TOKEN, method: str = "GET",
+             bind_api_workers: bool = True) -> tuple[int, dict[str, object]]:
+        if bind_api_workers and not server.api_workers:
+            server.api_workers = self.api_workers
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
@@ -37,6 +69,43 @@ class InternalReadinessTests(unittest.TestCase):
         status, body = self.call(InternalReadinessServer(token=TOKEN, port=0))
         self.assertEqual(status, 503)
         self.assertEqual(body["status"], "not_ready")
+
+    def test_positive_provider_report_without_api_workers_is_not_ready(self):
+        report: dict[str, object] = {
+            "runtime": True, "clm_qwen": True, "deepseek": True,
+            "required_local_artifact_files": True,
+            "required_local_artifact_manifest_sha256": "a" * 64,
+        }
+        status, body = self.call(InternalReadinessServer(
+            token=TOKEN, port=0, probe=lambda: report), bind_api_workers=False)
+        self.assertEqual((status, body["status"]), (503, "not_ready"))
+
+    def test_worker_exit_during_provider_check_revokes_ready(self):
+        def external_probe() -> dict[str, object]:
+            self.api_servers[1].shutdown()
+            self.api_workers[1].join(timeout=2)
+            return {"runtime": True, "clm_qwen": True, "deepseek": True,
+                    "required_local_artifact_files": True,
+                    "required_local_artifact_manifest_sha256": "a" * 64}
+
+        status, body = self.call(InternalReadinessServer(
+            token=TOKEN, port=0, probe=external_probe, api_workers=self.api_workers))
+        self.assertEqual((status, body["status"]), (503, "not_ready"))
+        self.assertFalse(cast(dict[str, object], body["checks"])["runtime"])
+
+    def test_shutdown_request_revokes_ready_while_api_workers_still_run(self):
+        stopping = threading.Event()
+
+        def external_probe() -> dict[str, object]:
+            stopping.set()
+            return {"runtime": True, "clm_qwen": True, "deepseek": True,
+                    "required_local_artifact_files": True,
+                    "required_local_artifact_manifest_sha256": "a" * 64}
+
+        status, body = self.call(InternalReadinessServer(
+            token=TOKEN, port=0, probe=external_probe,
+            api_workers=self.api_workers, stopping=stopping))
+        self.assertEqual((status, body["status"]), (503, "not_ready"))
 
     def test_changed_required_file_revokes_readiness_on_next_request(self):
         with tempfile.TemporaryDirectory() as scratch:
