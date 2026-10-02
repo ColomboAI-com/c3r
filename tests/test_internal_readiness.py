@@ -177,7 +177,7 @@ class InternalReadinessTests(unittest.TestCase):
                 pin = hashlib.sha256(manifest.read_bytes()).hexdigest()
                 verifier = PinnedLocalArtifacts(manifest, pin)
                 status, body = self.call(InternalReadinessServer(
-                    token=TOKEN, port=0, probe=lambda: {
+                    token=TOKEN, port=0, probe=lambda verifier=verifier, pin=pin: {
                         "runtime": True, "clm_qwen": True, "deepseek": True,
                         "required_local_artifact_files": verifier.verify(),
                         "required_local_artifact_manifest_sha256": pin,
