@@ -12,16 +12,19 @@ C3R is disabled.
 
 ## Deliberative providers
 
-The release default is DeepSeek V4.1 Flash. Canonical identifiers are:
+The stateless production target is self-hosted DeepSeek V4.1 Flash alongside
+Qwen3-8B/CLM on the existing eight-H100 node. Canonical identifiers are:
 
 - Hugging Face checkpoint: `deepseek-ai/DeepSeek-V4.1-Flash`
-- OpenRouter: `deepseek/deepseek-v4.1-flash`
-- DeepSeek API: `deepseek-flash`
+- Local OpenAI-compatible endpoint: `http://127.0.0.1:8000/v1`, alias `/model`
 
-This is a provider default, not execution authority and not a claim that the full checkpoint
-fits the current GCP instance. `c3r.deliberative.default_provider_config` constructs either
-hosted profile without embedding credentials. A self-hosted profile is enabled only after a
-hardware manifest and live inference evidence demonstrate compatibility.
+This is a provider default, not execution authority. The official checkpoint has passed a
+private 8×H100 GCP localhost inference smoke test and has a verified private GCS backup;
+neither result qualifies a public C3R endpoint. `c3r.deliberative.default_provider_config`
+constructs this local profile by default. Explicit remote profiles remain
+legacy compatibility contracts only, not production routing or fallback.
+See [`deploy/deepseek-v41`](../deploy/deepseek-v41/README.md) for the pinned
+qualification target, startup correction, and recovery/candidate distinction.
 
 `c3r.adapters.providers.ProviderAdapter` supports four protocol shapes:
 
@@ -37,8 +40,12 @@ invalid JSON, oversize content, or non-success HTTP status fail closed. `Provide
 converts transport, outage, timeout, and malformed-response failures into the deterministic action
 selected by host policy. API keys are supplied by the host and are absent from results and telemetry.
 
-These are protocol-level contracts. A provider becomes release-qualified only after credentialed
-tests capture model revision, region, latency, usage, failure, and fallback evidence.
+These are protocol-level contracts. Historical credentialed, fixed-prompt remote probes for
+DeepSeek, Qwen3.8 Flash, and Claude Sonnet 4.6 capture limited latency and usage evidence.
+A provider becomes release-qualified only after multi-case tests capture model revision,
+region, latency, usage, failure, and fallback evidence in the integrated C3R path.
+`c3r.deliberative.provider_bridge.ProviderDeliberator` connects compiled state to the adapter
+while rejecting local-only state for remote endpoints. Its structured plan has no commit authority.
 
 ## Colibri shadow control
 
@@ -47,13 +54,15 @@ verification width, expert/cache/I/O/utilization, and context metrics. Its outpu
 `authoritative=False`. Low draft acceptance recommends `TARGET_ONLY`; controller failure returns
 `NATIVE_FALLBACK`. Native token acceptance and MoE routing remain authoritative.
 
-Live completion still requires a compatible Colibri build, the dedicated public integration
-repository, immutable build hashes, and captured shadow traces.
+The dedicated public integration repository and pinned build exist. Live completion still
+requires compatible instrumentation, immutable route/build evidence, and captured shadow traces.
 
 ## Evidence ledger
 
 `c3r.telemetry.trace_ledger.TraceLedger` canonicalizes decision traces and links them with SHA-256.
 Replay rejects reordered, modified, non-canonical, or broken-chain records. The ledger supplies
-an integrity check, not tamper proofing or empirical evidence by itself: evidence-grade use must
+an integrity check, not tamper proofing or empirical evidence by itself. A transactional
+`SqliteTraceLedger` survives restart and verifies its chain on open, but must be placed on
+durable, access-controlled storage and backed up. Evidence-grade use must
 anchor or sign ledger heads in an independently controlled append-only store, and release traces
 must still be governed, redacted, licensed, and independently reproducible.

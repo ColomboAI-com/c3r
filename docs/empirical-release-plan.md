@@ -6,6 +6,33 @@ Produce the first evidence-complete `ColomboAI/C3R-Decision-Laya-421M-v0.1` chec
 empirical `ColomboAI/C3R-DecisionMix-v1` dataset without weakening the authority boundary,
 contaminating held-out benchmarks, or presenting synthetic fixtures as deployment evidence.
 
+## Source decision (2026-09-22)
+
+The [Laya/DeepSeek source audit](laya-data-source-audit.md) accepts pinned Laya weights as
+the attributed training base. `LocalLLaMA/typed-decisions` may be used only as a separately
+labeled synthetic training or benchmark source after its exact revision and file hashes are
+recorded; its upstream test split stays in a sealed comparison harness, never in DecisionMix
+train, validation, or calibration. Self-hosted DeepSeek can generate proposals from approved
+prompts, but its own output is not an independent verifier or task-outcome label.
+
+The user approved **C3R-controlled internal tasks only** as the present
+training/evaluation source, including redacted telemetry from those tasks in private
+shadow/canary qualification. The [interim trace policy](internal-task-trace-policy.md)
+designates `@wilkont` as the accountable ColomboAI account, caps private row-level
+retention at 30 days, and defines restricted publication after review. This does not
+approve customer, product, Laya-user, DeepSeek-user, or Colibri operational logs.
+Collection remains disabled until the policy's technical activation gates are
+implemented and verified. The first controlled source is
+the [five-case local paired replay](controlled-replay.md), which is a pipeline smoke
+test, not an empirical DecisionMix corpus or training/calibration set. Before
+expanding the controlled corpus, record the source owner, task
+population, data-use rights, consent/privacy basis where applicable, retention/deletion rule,
+redaction policy, and separate internal-training and public-publication scopes. Execute paired
+baseline/controller runs against the same immutable tasks with independent verifier and
+outcome labels, then lock train/validation/calibration/test partitions before model selection.
+Controlled internal tasks establish a bounded controlled-evaluation claim; they do not by
+themselves establish production-traffic or Colibri-shadow performance.
+
 The plan is ordered by evidence dependency. A later phase cannot waive an earlier exit gate.
 
 ## Release train
