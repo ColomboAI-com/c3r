@@ -64,7 +64,18 @@ those fields.
 | `POST /v1/c3r/rank` | Direct, read-only ranking of arbitrary candidate strings. No action catalog is required and nothing is executed. |
 | `POST /v1/system-one` | Typed `choice`, `boolean`/`noul`, and ordered `score` questions, or direct candidate ranking. Relative scores are not task-success probabilities or authority. |
 | `POST /v1/c3r/execute` | Returns 501. External effects are unsupported. |
-| `POST /v1/responses` | Text-only Responses subset for `c3r-core`: string `input`, bounded `max_output_tokens`, `store: false`, `stream: false`. Generation uses local DeepSeek, not CLM. Tools, storage, streaming and other fields are rejected. |
+| `POST /v1/responses` | Text-only Responses subset for `c3r-core`: string `input`, bounded `max_output_tokens`, `store: false`, and optional `stream: true` for bounded SSE. Generation uses local DeepSeek, not CLM. Tools, storage and unsupported fields are rejected. |
+
+Responses SSE emits `response.created`, output-text events and a terminal
+completion or error. Closing the stream cancels the upstream connection and
+releases admission slots. This is an implemented contract, not evidence of
+live-provider load or cancellation qualification; see [developer API](developer-api.md).
+
+Tenant and project identity are derived only from the scoped API key. Caller
+override headers (`X-Tenant-ID`, `X-Project-ID`, `OpenAI-Organization`,
+`OpenAI-Project`, `X-C3R-Organization`, `X-C3R-Project`) are rejected with 401.
+Do not configure SDK organization/project overrides; select the project through
+its scoped key.
 
 `POST /v1/decisions` remains the compatibility route. Example:
 

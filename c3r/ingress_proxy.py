@@ -157,6 +157,13 @@ class _IngressHandler(BaseHTTPRequestHandler):
         )
 
     def _authorized(self) -> bool:
+        # Tenant and project identity come only from the authenticated key.
+        # Reject caller context overrides rather than silently ignoring them.
+        if any(name in self.headers for name in (
+            "X-Tenant-ID", "X-Project-ID", "OpenAI-Organization", "OpenAI-Project",
+            "X-C3R-Organization", "X-C3R-Project",
+        )):
+            return False
         supplied = self.headers.get_all("X-C3R-Token", [])
         authorization = self.headers.get_all("Authorization", [])
         if len(authorization) > 1 or len(supplied) > 1:
