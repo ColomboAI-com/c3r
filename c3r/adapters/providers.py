@@ -511,6 +511,7 @@ class ProviderAdapter:
     def deliberate(self, request: DeliberationRequest) -> ProviderExecutionResult:
         state = json.dumps(dict(request.state), sort_keys=True, separators=(",", ":"))
         url, headers, payload = self._codec.build(self.config, state)
+        transport_attempt("system_two")
         response = self._transport(url, headers, payload)
         if len(json.dumps(response.body, separators=(",", ":")).encode()) > MAX_RESPONSE_BYTES:
             raise ValueError("provider response exceeds byte limit")

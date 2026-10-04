@@ -18,7 +18,7 @@ are not invented. If storage fails, requests fail closed, but durable accounting
 cannot be claimed for an unavailable database. Connection refusal is not recorded
 as billable model work.
 
-CLM ranking and OpenAI-compatible text generation count request-local transport
+CLM ranking, structured ProviderAdapter deliberation and OpenAI-compatible text generation count request-local transport
 attempts at their adapter dispatch boundaries, including attempted failures. SSE
 terminal responses carry the same counters. `invocation_basis` is explicitly
 `adapter_transport_attempts`: counts are not successful GPU executions, completed

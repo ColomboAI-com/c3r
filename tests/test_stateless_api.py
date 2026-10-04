@@ -8,6 +8,7 @@ from urllib.request import Request, urlopen
 
 from c3r.adapters.providers import ProviderAdapter, ProviderConfig, ProviderKind, TransportResponse
 from c3r.host_factory import ReadOnlyRequestFactory
+from c3r.deliberative.provider_bridge import ProviderDeliberator
 from c3r.http_service import C3RHTTPServer
 from c3r.readiness import CachedReadiness
 from c3r.responses import ResponsesService
@@ -157,6 +158,35 @@ class StatelessAPITests(unittest.TestCase):
         self.assertEqual((body["c3r"]["system_one_invocations"],
                           body["c3r"]["system_two_invocations"]), (2, 0))
         self.assertEqual(body["c3r"]["invocation_basis"], "adapter_transport_attempts")
+
+    def test_failed_structured_decision_provider_is_counted_without_payload_details(self):
+        adapter = ProviderAdapter(ProviderConfig(
+            "local", ProviderKind.OPENAI_COMPATIBLE, "http://127.0.0.1:8000/v1", "model", None,
+        ), transport=lambda *_: TransportResponse(503, {"error": "PRIVATE_PROVIDER_FAILURE"}, 1))
+        self.server.runtime, _ = controller(deliberative=True, deliberator=ProviderDeliberator(adapter))
+        self.server.request_factory = ReadOnlyRequestFactory(
+            definitions=(ActionDefinition("reason", ActionFamily.DELIBERATE, "model", "plan",
+                RiskClass.READ_ONLY, ((),), ("local",), ("policy",), 1.0, 0.1),),
+            policy=AuthorityPolicy(frozenset({ActionFamily.DELIBERATE}), frozenset({RiskClass.READ_ONLY})),
+            estimate_source=lambda _: {"reason:0:local:policy": ValueEstimate(0.9, 0.1, 0.0, 0.1)},
+            remaining_usd=1.0)
+        status, body = self.call("/v1/c3r/decide", payload={
+            "goal": "Find record", "current_subgoal": "inspect"})
+        self.assertEqual((status, body["reason"]), (200, "DELIBERATIVE_FAILURE"))
+        self.assertEqual((body["c3r"]["system_one_invocations"],
+                          body["c3r"]["system_two_invocations"]), (0, 1))
+        self.assertNotIn("PRIVATE_PROVIDER_FAILURE", json.dumps(body))
+
+    def test_failed_clm_transport_attempt_is_counted_without_private_diagnostics(self):
+        def failed(_payload):
+            raise OSError("PRIVATE_CLM_FAILURE")
+        self.configure_ranker(failed)
+        status, body = self.call("/v1/system-one", payload={
+            "state": "test", "candidates": ["inspect", "abstain"]})
+        self.assertEqual(status, 503)
+        self.assertEqual((body["c3r"]["system_one_invocations"],
+                          body["c3r"]["system_two_invocations"]), (1, 0))
+        self.assertNotIn("PRIVATE_CLM_FAILURE", json.dumps(body))
 
     def test_system_one_boolean_ranking_and_authority_rejection(self):
         def rank(payload):

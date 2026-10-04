@@ -288,6 +288,13 @@ class APIAccessHTTPTests(unittest.TestCase):
                 break
             time.sleep(0.05)
         self.assertEqual(status, 200)
+        rows = self.store.project_usage("tenant-a", "project-a")
+        cancelled = [row for row in rows if row["status"] == 499]
+        self.assertEqual(len(cancelled), 1)
+        self.assertIsNone(cancelled[0]["system_one_invocations"])
+        self.assertIsNone(cancelled[0]["system_two_invocations"])
+        self.assertNotIn("wait_headers", json.dumps(rows))
+        self.assertEqual(len({row["request_id"] for row in rows}), len(rows))
 
 
 if __name__ == "__main__":
