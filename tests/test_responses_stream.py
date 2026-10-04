@@ -133,6 +133,10 @@ class ResponsesStreamTests(unittest.TestCase):
         self.assertIn("Check charges.", wire)
         self.assertNotIn("PRIVATE", wire)
         self.assertTrue(self.backend.requests[0]["stream"])
+        terminal = [json.loads(line[6:]) for line in wire.splitlines()
+                    if line.startswith("data: ")][-1]["response"]
+        self.assertEqual((terminal["c3r"]["system_one_invocations"],
+                          terminal["c3r"]["system_two_invocations"]), (0, 1))
 
     def test_rejected_stream_does_not_start_backend_generation(self):
         runtime, _ = controller(deliberative=True, accepted=False)

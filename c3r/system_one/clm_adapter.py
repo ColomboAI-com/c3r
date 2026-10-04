@@ -18,6 +18,7 @@ from urllib.request import HTTPHandler, ProxyHandler, Request, build_opener
 
 from ..http_transport import NoRedirectHandler
 from ..state_schema import CompiledState
+from ..telemetry.invocations import transport_attempt
 from .question_registry import TypedQuestion
 
 UPSTREAM_CLM_COMMIT = "bb42c6c5bf914fd449bed2f6ca65be80602cb1f7"
@@ -120,6 +121,7 @@ class ClmAdapter:
             remaining = min(remaining, deadline - time.monotonic())
         if remaining <= 0:
             raise TimeoutError("CLM decision deadline exceeded")
+        transport_attempt("system_one")
         response = self.transport(payload) if self.transport is not None else self._post(payload, remaining)
         if response.get("model") != self.served_model:
             raise ValueError("CLM served model does not match the requested model")

@@ -1,6 +1,7 @@
 import json
 import socket
 import threading
+import time
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import HTTPError
@@ -82,6 +83,41 @@ class IngressProxyTests(unittest.TestCase):
         self.assertEqual(headers["Authorization"], f"Bearer {UPSTREAM_TOKEN}")
         self.assertNotIn("X-C3R-Token", headers)
         self.assertEqual(json.loads(forwarded), {"goal": "inspect"})
+
+    def test_idle_connection_cannot_allocate_another_worker_and_release_recovers(self):
+        server = C3RIngressServer(upstream_port=self.upstream.server_port,
+                                  client_token=CLIENT_TOKEN, upstream_token=UPSTREAM_TOKEN,
+                                  host="127.0.0.1", port=0, max_connections=1)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        first = socket.create_connection(server.server_address, timeout=1)
+        try:
+            first.sendall(b"GET /health HTTP/1.1\r\n")  # Incomplete headers occupy one worker.
+            time.sleep(0.1)
+            with socket.create_connection(server.server_address, timeout=1) as second:
+                second.sendall(b"GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                try:
+                    refused = second.recv(4096)
+                except (ConnectionResetError, ConnectionAbortedError):
+                    refused = b""
+                self.assertEqual(refused, b"")
+            self.assertEqual(self.upstream.seen, [])
+            first.close()
+            deadline = time.monotonic() + 2
+            while True:
+                try:
+                    with urlopen(f"http://127.0.0.1:{server.server_port}/health", timeout=1) as reply:
+                        self.assertEqual(reply.status, 200)
+                    break
+                except OSError:
+                    if time.monotonic() >= deadline:
+                        raise
+                    time.sleep(0.02)
+        finally:
+            first.close()
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
 
     def test_sdk_bearer_authentication_without_cloud_run_header(self):
         request = Request(self.base + "/v1/models", headers={

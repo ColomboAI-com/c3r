@@ -144,6 +144,20 @@ class StatelessAPITests(unittest.TestCase):
         self.assertFalse(body["calibrated"])
         self.assertFalse(body["effect_executed"])
 
+    def test_system_one_metadata_counts_actual_transport_attempts_per_question(self):
+        def rank(payload):
+            return {"model": "clm-latest", "ranked": [
+                {"candidate": option, "prob": score}
+                for option, score in zip(payload["answers"], (0.8, 0.2))]}
+        self.configure_ranker(rank)
+        status, body = self.call("/v1/system-one", payload={
+            "state": "test", "questions": {"first": {"type": "boolean"},
+                                             "second": {"type": "boolean"}}})
+        self.assertEqual(status, 200)
+        self.assertEqual((body["c3r"]["system_one_invocations"],
+                          body["c3r"]["system_two_invocations"]), (2, 0))
+        self.assertEqual(body["c3r"]["invocation_basis"], "adapter_transport_attempts")
+
     def test_system_one_boolean_ranking_and_authority_rejection(self):
         def rank(payload):
             return {"model": "clm-latest", "ranked": [
@@ -199,6 +213,8 @@ class StatelessAPITests(unittest.TestCase):
         self.assertNotIn("PRIVATE", json.dumps(body))
         self.assertFalse(body["c3r"]["effect_executed"])
         self.assertFalse(body["store"])
+        self.assertEqual((body["c3r"]["system_one_invocations"],
+                          body["c3r"]["system_two_invocations"]), (0, 1))
 
     def test_positive_cvoc_generation_still_requires_independent_verification(self):
         calls = []

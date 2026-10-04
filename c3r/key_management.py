@@ -16,7 +16,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--database", type=Path, required=True)
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("project", "issue", "keys", "revoke", "usage"):
+    for name in ("project", "issue", "keys", "revoke", "usage", "purge"):
         command = commands.add_parser(name)
         command.add_argument("--tenant", required=True)
         command.add_argument("--project", required=True)
@@ -29,6 +29,9 @@ def main() -> int:
             command.add_argument("--ttl-seconds", type=int, default=86400)
         elif name == "revoke":
             command.add_argument("--key-id", required=True)
+        elif name == "purge":
+            command.add_argument("--retention-seconds", type=int, required=True)
+            command.add_argument("--limit", type=int, default=1000)
     args = parser.parse_args()
     try:
         store = AccessStore(args.database)
@@ -46,6 +49,9 @@ def main() -> int:
             result = {"status": "revoked"}
         elif args.command == "keys":
             result = store.list_keys(args.tenant, args.project)
+        elif args.command == "purge":
+            result = store.purge_metadata(args.tenant, args.project,
+                                          retention_seconds=args.retention_seconds, limit=args.limit)
         else:
             result = store.project_usage(args.tenant, args.project)
         print(json.dumps(result, sort_keys=True))

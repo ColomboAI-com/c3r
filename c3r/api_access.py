@@ -171,7 +171,8 @@ class AccessStore:
                      model: str | None, status: int, latency_ms: float,
                      input_tokens: int | None, output_tokens: int | None,
                      system_one_invocations: int | None,
-                     system_two_invocations: int | None) -> None:
+                     system_two_invocations: int | None,
+                     invocation_basis: str | None = None) -> None:
         metadata = {"request_id": request_id, "tenant_id": principal.tenant_id,
                     "project_id": principal.project_id, "api_key_id": principal.key_id,
                     "route": route, "model": model, "status": status,
@@ -179,6 +180,7 @@ class AccessStore:
                     "input_tokens": input_tokens, "output_tokens": output_tokens,
                     "system_one_invocations": system_one_invocations,
                     "system_two_invocations": system_two_invocations,
+                    "invocation_basis": invocation_basis,
                     "gpu_allocation_ms": None, "allocated_cost_usd": None,
                     "cost_basis": "unmeasured"}
         with self.connect() as connection:
@@ -191,6 +193,30 @@ class AccessStore:
             rows = connection.execute("SELECT metadata FROM usage_records WHERE tenant=? AND project=?",
                                       (tenant, project)).fetchall()
             return [cast(dict[str, object], json.loads(row[0])) for row in rows]
+
+    def purge_metadata(self, tenant: str, project: str, *, retention_seconds: int,
+                       limit: int = 1000) -> dict[str, object]:
+        """Bounded logical deletion in this database only; not backup/physical erase proof."""
+        _identifier(tenant)
+        _identifier(project)
+        if (type(retention_seconds) is not int or not 60 <= retention_seconds <= 30 * 86400
+                or type(limit) is not int or not 1 <= limit <= 10000):
+            raise ValueError("bounded metadata retention and batch size required")
+        cutoff = self.clock() - retention_seconds
+        with self.connect() as connection:
+            connection.execute("PRAGMA secure_delete=ON")
+            connection.execute("BEGIN IMMEDIATE")
+            usage = connection.execute(
+                "DELETE FROM usage_records WHERE rowid IN (SELECT rowid FROM usage_records "
+                "WHERE tenant=? AND project=? AND json_extract(metadata,'$.timestamp')<? "
+                "ORDER BY rowid LIMIT ?)", (tenant, project, cutoff, limit)).rowcount
+            audit = connection.execute(
+                "DELETE FROM audit_events WHERE id IN (SELECT id FROM audit_events "
+                "WHERE tenant=? AND project=? AND at<? ORDER BY id LIMIT ?)",
+                (tenant, project, cutoff, limit)).rowcount
+        return {"usage_deleted": usage, "audit_deleted": audit, "cutoff_utc_seconds": cutoff,
+                "batch_limit_per_table": limit, "scope": "selected_project_live_database_only",
+                "backup_deletion_verified": False, "physical_erasure_verified": False}
 
     def admit(self, principal: Principal) -> bool:
         now = int(self.clock())
