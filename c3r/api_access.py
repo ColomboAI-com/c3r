@@ -105,49 +105,6 @@ class AccessStore:
         finally:
             connection.close()
 
-    def copy_credentials(self, destination: Path, *, restore: bool = False) -> dict[str, object]:
-        """New-file credential snapshot; restores revoke every key pending secure rotation.
-
-        Never copy quota, usage or request audit history. Encryption and deletion of
-        external copies remain deployment responsibilities, not properties of SQLite.
-        A failed copy can leave an empty reserved file; it is never overwritten/reused.
-        """
-        self.validate_path(destination)
-        descriptor = os.open(destination, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        os.close(descriptor)
-        target = AccessStore(destination, clock=self.clock)
-        with self.connect() as source, target.connect() as output:
-            source.execute("BEGIN")
-            if source.execute("PRAGMA quick_check").fetchone() != ("ok",):
-                raise ValueError("credential source failed integrity check")
-            if restore and source.execute(
-                    "SELECT version FROM credential_snapshot").fetchall() != [(1,)]:
-                raise ValueError("credential snapshot required for restore")
-            counts: dict[str, int] = {}
-            for table, columns in (
-                    ("organizations", "id"),
-                    ("projects", "tenant,id,rpm,key_rps"),
-                    ("api_keys", "id,salt,digest,tenant,project,scopes,created_at,expires_at,last_used_at,revoked")):
-                rows = source.execute(f"SELECT {columns} FROM {table}")
-                placeholders = ",".join("?" for _ in columns.split(","))
-                output.executemany(f"INSERT INTO {table} ({columns}) VALUES ({placeholders})", rows)
-                counts[table] = output.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
-            if restore:
-                output.execute("UPDATE api_keys SET revoked=1")
-            else:
-                output.execute("CREATE TABLE credential_snapshot (version INTEGER NOT NULL)")
-                output.execute("INSERT INTO credential_snapshot VALUES (1)")
-            if output.execute("PRAGMA foreign_key_check").fetchone() is not None:
-                raise ValueError("credential snapshot relationships invalid")
-        with destination.open("r+b") as artifact:
-            os.fsync(artifact.fileno())
-            digest = hashlib.file_digest(artifact, "sha256").hexdigest()
-        return {"status": "restored_keys_revoked" if restore else "credential_snapshot_created",
-                "organizations_copied": counts["organizations"], "projects_copied": counts["projects"],
-                "keys_copied": counts["api_keys"], "sha256": digest,
-                "requires_key_rotation": restore, "scope": "credentials_and_project_limits_only",
-                "encryption_verified": False, "backup_deletion_verified": False}
-
     def create_project(self, tenant: str, project: str, *, rpm: int = 60,
                        key_rps: int = 10) -> None:
         _identifier(tenant)

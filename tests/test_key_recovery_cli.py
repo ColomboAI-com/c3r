@@ -1,5 +1,7 @@
 """Credential recovery through the operator-local CLI; no live cloud state."""
 import json
+import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -115,6 +117,45 @@ class KeyRecoveryCLITests(unittest.TestCase):
             digest = hashlib.sha256(source.path.read_bytes()).hexdigest()
             result = self.run_cli(source.path, "restore", root / "restored.sqlite3",
                                   "--expected-sha256", digest)
+            self.assertEqual(result.returncode, 1)
+
+    def test_restore_rejects_unbound_wal_sidecar(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            source = AccessStore(root / "source.sqlite3")
+            source.create_project("avori", "staging")
+            backup = root / "backup.sqlite3"
+            self.assertEqual(self.run_cli(source.path, "backup", backup).returncode, 0)
+            writer = sqlite3.connect(backup)
+            try:
+                writer.execute("PRAGMA journal_mode=WAL")
+                # Capture the main-file hash after WAL mode is selected, before
+                # committing new contents only into its unbound sidecar.
+                import hashlib
+                digest = hashlib.sha256(backup.read_bytes()).hexdigest()
+                writer.execute("UPDATE projects SET rpm=999")
+                writer.commit()
+                self.assertEqual(hashlib.sha256(backup.read_bytes()).hexdigest(), digest)
+                destination = root / "restored.sqlite3"
+                result = self.run_cli(backup, "restore", destination,
+                                      "--expected-sha256", digest)
+                self.assertEqual(result.returncode, 1)
+                self.assertFalse(destination.exists())
+            finally:
+                writer.close()
+
+    def test_backup_rejects_empty_and_hardlinked_sources_without_modification(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            empty = root / "empty.sqlite3"
+            empty.touch()
+            result = self.run_cli(empty, "backup", root / "empty-backup.sqlite3")
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(empty.read_bytes(), b"")
+            source = AccessStore(root / "source.sqlite3")
+            alias = root / "alias.sqlite3"
+            os.link(source.path, alias)
+            result = self.run_cli(alias, "backup", root / "alias-backup.sqlite3")
             self.assertEqual(result.returncode, 1)
 
 

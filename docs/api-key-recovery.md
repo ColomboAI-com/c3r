@@ -13,6 +13,12 @@ deployed encryption, a backup schedule, copy deletion, or an actual production d
 - Return the completed snapshot's SHA256, counts and scope, never plaintext keys.
 - Require the approved snapshot SHA256 on restore and a versioned snapshot marker.
   The hash must come from the approved receipt, not be recomputed to bless a changed file.
+- Restore only a bounded, standalone snapshot (at most 64 MiB), rejecting WAL, SHM
+  and journal sidecars. Deserialize the exact hash-verified bytes into read-only
+  in-memory SQLite; never reopen the source pathname to obtain recovery rows.
+- Backup opens the existing database read-only, validates its credential schema and
+  uses one read transaction. An empty or wrong source is an error, not a new database.
+  Hard-linked files and redirected/junction paths are rejected at the recovery boundary.
 - Revoke **all restored keys**. An older backup cannot establish revocations made
   after it was taken. Issue replacement scoped keys through the secure delivery
   workflow before reopening ingress; no option silently reactivates snapshot keys.
