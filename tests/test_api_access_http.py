@@ -154,6 +154,22 @@ class APIAccessHTTPTests(unittest.TestCase):
         expired = self.store.issue_key("tenant-a", "project-a", {"models:read"}, expires_at=1)
         self.assertEqual(self.call("/v1/models", key=expired.secret)[0], 401)
 
+    def test_operator_revoke_cannot_claim_success_for_another_projects_key(self) -> None:
+        command = [sys.executable, "-m", "c3r.key_management", "--database",
+                   str(self.store.path), "revoke", "--tenant", "tenant-a",
+                   "--key-id", self.key.key_id, "--project"]
+        wrong_project = subprocess.run(command + ["other-project"], capture_output=True,
+                                       text=True, timeout=5, check=False)
+        self.assertEqual(wrong_project.returncode, 1)
+        self.assertIn("error", json.loads(wrong_project.stdout))
+        self.assertNotIn(self.key.secret, wrong_project.stdout)
+        self.assertEqual(self.call("/v1/models")[0], 200)
+        own_project = subprocess.run(command + ["project-a"], capture_output=True,
+                                     text=True, timeout=5, check=False)
+        self.assertEqual(own_project.returncode, 0)
+        self.assertEqual(json.loads(own_project.stdout), {"status": "revoked"})
+        self.assertEqual(self.call("/v1/models")[0], 401)
+
     def test_project_rate_limit_is_shared_by_its_keys_not_other_tenants(self) -> None:
         self.store.create_project("tenant-b", "project-a", rpm=1)
         first = self.store.issue_key("tenant-b", "project-a", {"models:read"})
@@ -206,7 +222,8 @@ class APIAccessHTTPTests(unittest.TestCase):
         result = subprocess.run([sys.executable, "-m", "c3r.key_management", "--database",
                                  str(self.store.path), "purge", "--tenant", "tenant-a",
                                  "--project", "project-a", "--retention-seconds", "86400",
-                                 "--limit", "10"], capture_output=True, text=True, timeout=5)
+                                 "--limit", "10"], capture_output=True, text=True, timeout=5,
+                                check=False)
         self.assertEqual(result.returncode, 0, result.stderr)
         proof = json.loads(result.stdout)
         self.assertEqual((proof["usage_deleted"], proof["audit_deleted"]), (1, 1))

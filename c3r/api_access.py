@@ -148,8 +148,11 @@ class AccessStore:
 
     def revoke_key(self, tenant: str, project: str, key_id: str) -> None:
         with self.connect() as connection:
-            connection.execute("UPDATE api_keys SET revoked=1 WHERE tenant=? AND project=? AND id=?",
-                               (tenant, project, key_id))
+            changed = connection.execute(
+                "UPDATE api_keys SET revoked=1 WHERE tenant=? AND project=? AND id=?",
+                (tenant, project, key_id)).rowcount
+            if changed != 1:
+                raise ValueError("key not found in selected project")
             connection.execute("INSERT INTO audit_events VALUES (NULL,?,?,?,'key_revoked',NULL,?)",
                                (tenant, project, key_id, self.clock()))
 

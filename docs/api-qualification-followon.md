@@ -27,6 +27,11 @@ providers, readiness probes outside request capture and absent upstream metadata
 remain unknown; the counters do not cover arbitrary provider internals or retries.
 Zero means no instrumented transport attempt in that captured backend request.
 
+Operator key revocation succeeds only for a key in the selected organization and
+project. A missing or cross-project key returns the CLI's sanitized failure and
+does not emit a successful revocation audit event. This guards against falsely
+certifying a rotation/revocation drill; it is not an authenticated public admin API.
+
 The trusted operator CLI adds project-scoped bounded logical deletion:
 
 ```text
