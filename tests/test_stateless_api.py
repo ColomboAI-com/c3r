@@ -3,15 +3,18 @@
 import json
 import threading
 import unittest
+from collections.abc import Callable, Mapping
+from typing import cast
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from c3r.adapters.providers import ProviderAdapter, ProviderConfig, ProviderKind, TransportResponse
-from c3r.host_factory import ReadOnlyRequestFactory
 from c3r.deliberative.provider_bridge import ProviderDeliberator
+from c3r.host_factory import ReadOnlyRequestFactory
 from c3r.http_service import C3RHTTPServer
 from c3r.readiness import CachedReadiness
 from c3r.responses import ResponsesService
+from c3r.runtime import RuntimeRequest
 from c3r.state_schema import (
     ActionDefinition,
     ActionFamily,
@@ -20,15 +23,29 @@ from c3r.state_schema import (
     ValueEstimate,
 )
 from c3r.system_one.advisory import AdvisoryFastPath
-from c3r.system_one.clm_adapter import ClmAdapter
+from c3r.system_one.clm_adapter import ClmAdapter, RankTransport
 from c3r.system_one.inference import SystemOneInference
 from tests.test_runtime import controller, request
 
 TOKEN = "stateless-test-token-with-at-least-thirty-two-characters"
 
 
+def _ranked_fixture(
+    payload: Mapping[str, object], scores: tuple[float, float],
+) -> Mapping[str, object]:
+    answers = payload["answers"]
+    if not isinstance(answers, list):
+        raise TypeError("fixture requires an answers list")
+    ranked: list[dict[str, object]] = []
+    for option, score in zip(cast(list[object], answers), scores):
+        if not isinstance(option, str):
+            raise TypeError("fixture requires string answers")
+        ranked.append({"candidate": option, "prob": score})
+    return {"model": "clm-latest", "ranked": ranked}
+
+
 class _Factory:
-    def build(self, payload):
+    def build(self, payload: Mapping[str, object]) -> RuntimeRequest:
         if payload.get("goal") != "Find record":
             raise ValueError("unknown goal")
         return request()
@@ -50,7 +67,10 @@ class StatelessAPITests(unittest.TestCase):
         self.server.server_close()
         self.thread.join(timeout=2)
 
-    def call(self, path, *, method="POST", token=TOKEN, payload=None):
+    def call(
+        self, path: str, *, method: str = "POST", token: str = TOKEN,
+        payload: Mapping[str, object] | None = None,
+    ):
         headers = {"Authorization": f"Bearer {token}"}
         data = None if payload is None else json.dumps(payload).encode()
         if data is not None:
@@ -62,16 +82,22 @@ class StatelessAPITests(unittest.TestCase):
         except HTTPError as error:
             return error.code, json.load(error)
 
-    def configure_ranker(self, transport, *, enabled=True, system_one=True, ready=lambda: True):
+    def configure_ranker(
+        self, transport: RankTransport, *, enabled: bool = True, system_one: bool = True,
+        ready: Callable[[], bool] = lambda: True,
+    ) -> None:
         adapter = ClmAdapter("a" * 64, transport=transport)
         self.server.runtime, _ = controller(enabled=enabled, system_one=system_one,
                                             fast_path=AdvisoryFastPath(adapter))
         self.server.system_one = SystemOneInference(adapter, readiness=ready)
 
     def test_typed_ranker_respects_disable_switches_without_provider_calls(self):
-        calls = []
+        calls: list[Mapping[str, object]] = []
+        def record(payload: Mapping[str, object]) -> Mapping[str, object]:
+            calls.append(payload)
+            return {}
         for enabled, system_one in ((False, True), (True, False)):
-            self.configure_ranker(lambda payload: calls.append(payload), enabled=enabled,
+            self.configure_ranker(record, enabled=enabled,
                                   system_one=system_one)
             for path in ("/v1/system-one", "/v1/c3r/rank"):
                 status, _ = self.call(path, payload={"state": "test", "candidates": ["A", "B"]})
@@ -87,8 +113,9 @@ class StatelessAPITests(unittest.TestCase):
         self.assertTrue(body["data"][2]["available"])
 
     def test_metadata_coalesces_health_checks_and_expires_cached_status(self):
-        now, calls = [0.0], []
-        def probe():
+        now: list[float] = [0.0]
+        calls: list[int] = []
+        def probe() -> bool:
             calls.append(1)
             return len(calls) == 1
         readiness = CachedReadiness(probe, clock=lambda: now[0])
@@ -110,7 +137,7 @@ class StatelessAPITests(unittest.TestCase):
             self.assertEqual(body["authority_result"], "verified_not_committed")
             self.assertFalse(body["effect_executed"])
             self.assertNotIn("confidence", body)
-            if path.endswith("rank") or path.endswith("system-one"):
+            if path.endswith(("rank", "system-one")):
                 self.assertEqual(body["candidate_ranking"], [])
                 self.assertTrue(body["abstained"])
 
@@ -128,11 +155,8 @@ class StatelessAPITests(unittest.TestCase):
             self.assertEqual(body["error"], "not_implemented")
 
     def test_typed_system_one_answers_without_a_governed_action_catalog(self):
-        def rank(payload):
-            return {"model": "clm-latest", "ranked": [
-                {"candidate": option, "prob": score}
-                for option, score in zip(payload["answers"], (0.8, 0.2))
-            ]}
+        def rank(payload: Mapping[str, object]) -> Mapping[str, object]:
+            return _ranked_fixture(payload, (0.8, 0.2))
         self.configure_ranker(rank)
         status, body = self.call("/v1/system-one", payload={
             "model": "c3r-system-one", "state": "An invoice was charged twice",
@@ -146,10 +170,8 @@ class StatelessAPITests(unittest.TestCase):
         self.assertFalse(body["effect_executed"])
 
     def test_system_one_metadata_counts_actual_transport_attempts_per_question(self):
-        def rank(payload):
-            return {"model": "clm-latest", "ranked": [
-                {"candidate": option, "prob": score}
-                for option, score in zip(payload["answers"], (0.8, 0.2))]}
+        def rank(payload: Mapping[str, object]) -> Mapping[str, object]:
+            return _ranked_fixture(payload, (0.8, 0.2))
         self.configure_ranker(rank)
         status, body = self.call("/v1/system-one", payload={
             "state": "test", "questions": {"first": {"type": "boolean"},
@@ -162,7 +184,8 @@ class StatelessAPITests(unittest.TestCase):
     def test_failed_structured_decision_provider_is_counted_without_payload_details(self):
         adapter = ProviderAdapter(ProviderConfig(
             "local", ProviderKind.OPENAI_COMPATIBLE, "http://127.0.0.1:8000/v1", "model", None,
-        ), transport=lambda *_: TransportResponse(503, {"error": "PRIVATE_PROVIDER_FAILURE"}, 1))
+        ), transport=lambda _url, _headers, _payload: TransportResponse(
+            503, {"error": "PRIVATE_PROVIDER_FAILURE"}, 1))
         self.server.runtime, _ = controller(deliberative=True, deliberator=ProviderDeliberator(adapter))
         self.server.request_factory = ReadOnlyRequestFactory(
             definitions=(ActionDefinition("reason", ActionFamily.DELIBERATE, "model", "plan",
@@ -178,7 +201,7 @@ class StatelessAPITests(unittest.TestCase):
         self.assertNotIn("PRIVATE_PROVIDER_FAILURE", json.dumps(body))
 
     def test_failed_clm_transport_attempt_is_counted_without_private_diagnostics(self):
-        def failed(_payload):
+        def failed(_payload: Mapping[str, object]) -> Mapping[str, object]:
             raise OSError("PRIVATE_CLM_FAILURE")
         self.configure_ranker(failed)
         status, body = self.call("/v1/system-one", payload={
@@ -189,11 +212,8 @@ class StatelessAPITests(unittest.TestCase):
         self.assertNotIn("PRIVATE_CLM_FAILURE", json.dumps(body))
 
     def test_system_one_boolean_ranking_and_authority_rejection(self):
-        def rank(payload):
-            return {"model": "clm-latest", "ranked": [
-                {"candidate": option, "prob": score}
-                for option, score in zip(payload["answers"], (0.25, 0.75))
-            ]}
+        def rank(payload: Mapping[str, object]) -> Mapping[str, object]:
+            return _ranked_fixture(payload, (0.25, 0.75))
         self.configure_ranker(rank)
         status, body = self.call("/v1/system-one", payload={
             "state": "A duplicate charge", "questions": {"urgent": {"type": "boolean"}},
@@ -221,7 +241,7 @@ class StatelessAPITests(unittest.TestCase):
     def test_responses_returns_text_without_private_reasoning_or_external_effects(self):
         adapter = ProviderAdapter(ProviderConfig(
             "local", ProviderKind.OPENAI_COMPATIBLE, "http://127.0.0.1:8000/v1", "model", None,
-        ), transport=lambda *_: TransportResponse(200, {
+        ), transport=lambda _url, _headers, _payload: TransportResponse(200, {
             "choices": [{"message": {"content": "Check pending and settled charges.",
                                       "reasoning_content": "PRIVATE"}, "finish_reason": "stop"}],
             "usage": {"prompt_tokens": 12, "completion_tokens": 7},
@@ -247,10 +267,15 @@ class StatelessAPITests(unittest.TestCase):
                           body["c3r"]["system_two_invocations"]), (0, 1))
 
     def test_positive_cvoc_generation_still_requires_independent_verification(self):
-        calls = []
+        calls: list[int] = []
+        def record(
+            _url: str, _headers: dict[str, str], _payload: dict[str, object],
+        ) -> TransportResponse:
+            calls.append(1)
+            return TransportResponse(200, {}, 0)
         adapter = ProviderAdapter(ProviderConfig(
             "local", ProviderKind.OPENAI_COMPATIBLE, "http://127.0.0.1:8000/v1", "model", None,
-        ), transport=lambda *_: calls.append(1))
+        ), transport=record)
         runtime, _ = controller(deliberative=True, accepted=False)
         factory = ReadOnlyRequestFactory(definitions=(ActionDefinition(
             "DELIBERATE", ActionFamily.DELIBERATE, "compute", "generate",
@@ -266,8 +291,8 @@ class StatelessAPITests(unittest.TestCase):
         self.assertEqual(calls, [])
 
     def test_hosted_text_generation_cannot_transfer_local_only_state(self):
-        calls = []
-        def hosted_transport(*args):
+        calls: list[tuple[object, ...]] = []
+        def hosted_transport(*args: object) -> TransportResponse:
             calls.append(args)
             return TransportResponse(200, {"choices": [{"message": {"content": "ready"},
                                                        "finish_reason": "stop"}]}, 10)
@@ -288,8 +313,10 @@ class StatelessAPITests(unittest.TestCase):
         self.assertEqual(calls, [])
 
     def test_approved_hosted_responses_enforces_zero_retention_routing(self):
-        observed = []
-        def hosted_transport(url, headers, payload):
+        observed: list[dict[str, object]] = []
+        def hosted_transport(
+            url: str, headers: dict[str, str], payload: dict[str, object],
+        ) -> TransportResponse:
             observed.append(payload)
             return TransportResponse(200, {"choices": [{"message": {"content": "ready"},
                                                        "finish_reason": "stop"}],

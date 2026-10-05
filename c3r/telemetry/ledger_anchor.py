@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
-from typing import Callable
-
+from datetime import UTC, datetime
 
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
 
@@ -33,7 +32,8 @@ class LedgerHead:
             instant = datetime.fromisoformat(self.captured_at)
         except ValueError as error:
             raise ValueError("invalid capture timestamp") from error
-        if instant.tzinfo is None or instant.utcoffset().total_seconds() != 0:
+        offset = instant.utcoffset()
+        if instant.tzinfo is None or offset is None or offset.total_seconds() != 0:
             raise ValueError("capture timestamp must be UTC")
 
     def payload(self) -> bytes:
@@ -51,7 +51,7 @@ class SignedLedgerAnchor:
 
 def capture_head(
     *, sequence: int, record_hash: str, policy_version: str,
-    clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
 ) -> LedgerHead:
     return LedgerHead(sequence, record_hash, clock().isoformat(), policy_version)
 

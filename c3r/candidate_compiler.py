@@ -6,6 +6,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import replace
 
+from .progressive_widening import widen_when_margin_is_small
 from .state_schema import (
     ActionCandidate,
     ActionDefinition,
@@ -13,7 +14,6 @@ from .state_schema import (
     AuthorityPolicy,
     CandidateCompilation,
 )
-from .progressive_widening import widen_when_margin_is_small
 
 
 class CandidateCompiler:
@@ -160,9 +160,11 @@ class CandidateCompiler:
                     maximum_width=min(maximum_width, self._per_family_cap),
                     margin=widening_margin,
                 )
-                if len(selected_operations) > min(initial_width, len(operation_skeletons)):
-                    if family not in widened:
-                        widened.append(family)
+                if (
+                    len(selected_operations) > min(initial_width, len(operation_skeletons))
+                    and family not in widened
+                ):
+                    widened.append(family)
                 definitions_by_id = {item.id: item for item in subgroup_definitions}
                 for selected_skeleton in selected_operations:
                     definition = definitions_by_id[selected_skeleton.id]

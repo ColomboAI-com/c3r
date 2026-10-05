@@ -17,8 +17,8 @@ class AdaptiveCostTwin:
     priors: dict[str, CostForecast]
     residual_alpha: float = 0.2
     stale_error_threshold: float = 0.5
-    _residuals: dict[str, float] = field(default_factory=dict, init=False)
-    _stale: set[str] = field(default_factory=set, init=False)
+    _residuals: dict[str, float] = field(default_factory=dict[str, float], init=False)
+    _stale: set[str] = field(default_factory=set[str], init=False)
 
     def forecast(self, action_id: str) -> CostForecast:
         prior = self.priors[action_id]
@@ -37,4 +37,3 @@ class AdaptiveCostTwin:
         relative_error = abs(error) / max(forecast.expected, 1e-9)
         if relative_error > self.stale_error_threshold:
             self._stale.add(action_id)
-

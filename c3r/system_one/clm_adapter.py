@@ -126,14 +126,16 @@ class ClmAdapter:
         if response.get("model") != self.served_model:
             raise ValueError("CLM served model does not match the requested model")
         ranked = response.get("ranked")
-        if not isinstance(ranked, list) or len(ranked) != len(options):
+        if not isinstance(ranked, list) or len(cast(list[object], ranked)) != len(options):
             raise ValueError("CLM returned an incomplete ranking")
+        ranking_items = cast(list[object], ranked)
         probabilities: dict[str, float] = {}
-        for item in ranked:
-            if not isinstance(item, dict):
+        for item in ranking_items:
+            ranking_item = cast(Mapping[object, object], item) if isinstance(item, dict) else None
+            if ranking_item is None:
                 raise ValueError("CLM returned an invalid ranking item")
-            candidate = item.get("candidate")
-            probability = item.get("prob")
+            candidate = ranking_item.get("candidate")
+            probability = ranking_item.get("prob")
             if (
                 not isinstance(candidate, str)
                 or candidate not in options
@@ -168,6 +170,7 @@ class ClmAdapter:
         if len(body) > _MAX_RESPONSE_BYTES:
             raise ValueError("CLM response exceeds the allowed size")
         parsed = json.loads(body)
-        if not isinstance(parsed, dict):
+        object_response = cast(Mapping[str, object], parsed) if isinstance(parsed, dict) else None
+        if object_response is None:
             raise ValueError("CLM returned a non-object response")
-        return cast(Mapping[str, object], parsed)
+        return object_response

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-import re
 
 from ..state_schema import CompiledState
 from .question_registry import TypedQuestion

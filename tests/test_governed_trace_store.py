@@ -2,20 +2,22 @@ import hmac
 import sqlite3
 import tempfile
 import unittest
-from datetime import datetime, timedelta, timezone
+from collections.abc import Mapping
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from c3r.telemetry.governed_store import BoundGovernedTraceSink, GovernedTraceStore, SourceGrant
 from c3r.telemetry.ledger_anchor import sign_head, verify_anchor
 from c3r.telemetry.trace import DecisionTrace
 
+NOW = datetime(2026, 9, 22, 12, tzinfo=UTC)
 
-NOW = datetime(2026, 9, 22, 12, tzinfo=timezone.utc)
 
-
-def trace(**changes):
-    fields = dict(
-        run_id="run_001",
+def trace(*, run_id: str = "run_001",
+          task_outcome: Mapping[str, str | float | bool] | None = None,
+          artifact_refs: tuple[str, ...] = ()) -> DecisionTrace:
+    return DecisionTrace(
+        run_id=run_id,
         state_hash="a" * 64,
         access_level="internal",
         model_provider="deepseek_v4_1_flash",
@@ -25,15 +27,12 @@ def trace(**changes):
         selected_action_id="recommend",
         authority_result="verified",
         system_cost={"latency_ms": 18.0},
-        task_outcome={"status": "controlled_success"},
-        artifact_refs=(),
+        task_outcome={"status": "controlled_success"} if task_outcome is None else task_outcome,
+        artifact_refs=artifact_refs,
     )
-    fields.update(changes)
-    return DecisionTrace(**fields)
-
 
 class GovernedTraceStoreTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name) / "governed.sqlite3"
         self.grant = SourceGrant(
@@ -43,13 +42,13 @@ class GovernedTraceStoreTests(unittest.TestCase):
             rights_attested=True,
         )
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self.temp.cleanup()
 
-    def store(self, *, now=NOW):
+    def store(self, *, now: datetime = NOW) -> GovernedTraceStore:
         return GovernedTraceStore(self.path, grants=(self.grant,), clock=lambda: now)
 
-    def test_admits_only_attested_registered_internal_task(self):
+    def test_admits_only_attested_registered_internal_task(self) -> None:
         with self.store() as store:
             record = store.append(trace(), source_id="c3r_internal_001", task_id="task_001")
             self.assertEqual(len(store.records()), 1)
@@ -61,12 +60,12 @@ class GovernedTraceStoreTests(unittest.TestCase):
             with self.assertRaises(sqlite3.IntegrityError):
                 store.append(trace(), source_id="c3r_internal_001", task_id="task_001")
 
-    def test_unattested_source_cannot_be_registered(self):
+    def test_unattested_source_cannot_be_registered(self) -> None:
         with self.assertRaisesRegex(ValueError, "rights"):
             SourceGrant(source_id="imported", owner="wilkont",
                         task_ids=frozenset({"task_001"}), rights_attested=False)
 
-    def test_trusted_host_can_bind_source_and_task_for_runtime_sink(self):
+    def test_trusted_host_can_bind_source_and_task_for_runtime_sink(self) -> None:
         with self.store() as store:
             sink = BoundGovernedTraceSink(store, source_id="c3r_internal_001", task_id="task_001")
             record = sink.append(trace())
@@ -74,7 +73,7 @@ class GovernedTraceStoreTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unapproved source or task"):
                 BoundGovernedTraceSink(store, source_id="imported", task_id="task_001")
 
-    def test_rejects_free_text_or_private_artifact_reference(self):
+    def test_rejects_free_text_or_private_artifact_reference(self) -> None:
         with self.store() as store:
             with self.assertRaisesRegex(ValueError, "redaction"):
                 store.append(trace(task_outcome={"status": "email me at a@example.com"}),
@@ -84,7 +83,7 @@ class GovernedTraceStoreTests(unittest.TestCase):
                              source_id="c3r_internal_001", task_id="task_001")
             self.assertEqual(store.records(), ())
 
-    def test_purges_after_30_days_and_preserves_remaining_chain(self):
+    def test_purges_after_30_days_and_preserves_remaining_chain(self) -> None:
         with self.store(now=NOW - timedelta(days=31)) as store:
             first = store.append(trace(), source_id="c3r_internal_001", task_id="task_001")
         with self.store(now=NOW - timedelta(days=1)) as store:
@@ -99,7 +98,7 @@ class GovernedTraceStoreTests(unittest.TestCase):
             self.assertEqual(remaining[0].previous_hash, first.record_hash)
             self.assertTrue(store.verify())
 
-    def test_rejects_tampered_database_on_reopen(self):
+    def test_rejects_tampered_database_on_reopen(self) -> None:
         with self.store() as store:
             store.append(trace(), source_id="c3r_internal_001", task_id="task_001")
         db = sqlite3.connect(self.path)
@@ -111,17 +110,17 @@ class GovernedTraceStoreTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "hash chain"):
             self.store()
 
-    def test_clock_rollback_cannot_relabel_traces_after_purge(self):
+    def test_clock_rollback_cannot_relabel_traces_after_purge(self) -> None:
         with self.store() as store:
             store.append(trace(), source_id="c3r_internal_001", task_id="task_001")
         with self.store(now=NOW + timedelta(days=31)) as store:
             self.assertEqual(store.purge_expired(), 1)
-        with self.store(now=NOW - timedelta(days=1)) as store:
-            with self.assertRaisesRegex(ValueError, "clock moved backwards"):
-                store.append(trace(run_id="run_002"), source_id="c3r_internal_001",
-                             task_id="task_001")
+        with (self.store(now=NOW - timedelta(days=1)) as store,
+              self.assertRaisesRegex(ValueError, "clock moved backwards")):
+            store.append(trace(run_id="run_002"), source_id="c3r_internal_001",
+                         task_id="task_001")
 
-    def test_overdue_purge_blocks_new_collection_until_purged(self):
+    def test_overdue_purge_blocks_new_collection_until_purged(self) -> None:
         with self.store(now=NOW - timedelta(days=31)) as store:
             store.append(trace(), source_id="c3r_internal_001", task_id="task_001")
         with self.store(now=NOW) as store:
@@ -134,13 +133,14 @@ class GovernedTraceStoreTests(unittest.TestCase):
                          task_id="task_001")
             self.assertEqual(len(store.records()), 1)
 
-    def test_external_anchor_detects_clean_chain_tail_removal(self):
+    def test_external_anchor_detects_clean_chain_tail_removal(self) -> None:
         # The test key stands in for a separate signer; it is not deployment evidence.
         key = b"fixture-only-signer"
-        sign = lambda payload: hmac.digest(key, payload, "sha256")
-        verify = lambda _key_id, payload, signature: hmac.compare_digest(
-            sign(payload), signature
-        )
+        def sign(payload: bytes) -> bytes:
+            return hmac.digest(key, payload, "sha256")
+
+        def verify(_key_id: str, payload: bytes, signature: bytes) -> bool:
+            return hmac.compare_digest(sign(payload), signature)
         with self.store() as store:
             store.append(trace(), source_id="c3r_internal_001", task_id="task_001")
             store.append(trace(run_id="run_002"), source_id="c3r_internal_001",
@@ -166,7 +166,7 @@ class GovernedTraceStoreTests(unittest.TestCase):
                                            record_hash=current.record_hash,
                                            verifier=verify))
 
-    def test_head_snapshot_preserves_purged_prefix_checkpoint(self):
+    def test_head_snapshot_preserves_purged_prefix_checkpoint(self) -> None:
         with self.store(now=NOW - timedelta(days=31)) as store:
             first = store.append(trace(), source_id="c3r_internal_001", task_id="task_001")
             before = store.snapshot_head(policy_version="fixture-v1")

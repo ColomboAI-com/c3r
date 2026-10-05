@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import sqlite3
 import os
+import sqlite3
 import stat
 from pathlib import Path
 from threading import Lock
 
 from .trace import DecisionTrace
-from .trace_ledger import LedgerRecord, TraceLedger, _record_hash, canonical_trace_json
+from .trace_ledger import LedgerRecord, TraceLedger, canonical_trace_json, record_hash
 
 
 class SqliteTraceLedger:
@@ -59,7 +59,7 @@ class SqliteTraceLedger:
                     "SELECT record_hash FROM records ORDER BY sequence DESC LIMIT 1"
                 ).fetchone()
                 previous = row[0] if row is not None else "0" * 64
-                record = LedgerRecord(previous, _record_hash(previous, canonical), canonical)
+                record = LedgerRecord(previous, record_hash(previous, canonical), canonical)
                 self._db.execute(
                     "INSERT INTO records (previous_hash, record_hash, canonical_json) "
                     "VALUES (?, ?, ?)",

@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from c3r.telemetry.sqlite_ledger import SqliteTraceLedger
-from c3r.telemetry.trace_ledger import TraceLedger
+from c3r.telemetry.trace_ledger import LedgerRecord, TraceLedger
 from tests.test_trace_ledger import trace
 
 
@@ -14,8 +14,10 @@ class SqliteTraceLedgerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "traces.sqlite3"
             ledger = SqliteTraceLedger(path)
+            def append(index: int) -> LedgerRecord:
+                return ledger.append(trace(f"run-{index}"))
             with ThreadPoolExecutor(max_workers=8) as pool:
-                list(pool.map(lambda i: ledger.append(trace(f"run-{i}")), range(100)))
+                list(pool.map(append, range(100)))
             ledger.close()
 
             reopened = SqliteTraceLedger(path)

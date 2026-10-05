@@ -1,7 +1,7 @@
 import hmac
 import unittest
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from c3r.telemetry.ledger_anchor import capture_head, sign_head, verify_anchor
 from c3r.telemetry.trace import DecisionTrace
@@ -29,10 +29,11 @@ class LedgerAnchorTests(unittest.TestCase):
     def test_signed_head_matches_chain_and_detects_removal_or_alteration(self) -> None:
         # Test-only signer. Deployment must use a key unavailable to the writer.
         test_key = b"fixture-only-key"
-        sign = lambda payload: hmac.digest(test_key, payload, "sha256")
-        verify = lambda _key_id, payload, signature: hmac.compare_digest(
-            sign(payload), signature
-        )
+        def sign(payload: bytes) -> bytes:
+            return hmac.digest(test_key, payload, "sha256")
+
+        def verify(_key_id: str, payload: bytes, signature: bytes) -> bool:
+            return hmac.compare_digest(sign(payload), signature)
         ledger = TraceLedger()
         ledger.append(trace("one"))
         ledger.append(trace("two"))
@@ -40,7 +41,7 @@ class LedgerAnchorTests(unittest.TestCase):
             sequence=2,
             record_hash=ledger.records[-1].record_hash,
             policy_version="fixture-v1",
-            clock=lambda: datetime(2026, 9, 23, tzinfo=timezone.utc),
+            clock=lambda: datetime(2026, 9, 23, tzinfo=UTC),
         )
         anchor = sign_head(head, key_id="test-only", signer=sign)
 

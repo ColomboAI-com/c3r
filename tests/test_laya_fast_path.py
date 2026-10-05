@@ -1,5 +1,6 @@
 import unittest
 from dataclasses import dataclass
+from typing import NoReturn
 
 from c3r.state_schema import CompiledState
 from c3r.system_one.calibration import CalibrationKey, TemperatureCalibrator
@@ -103,7 +104,7 @@ class LayaFastPathTests(unittest.TestCase):
 
         @dataclass
         class FakeAgent:
-            def predict(self, _state: object, _questions: object) -> dict[str, object]:
+            def predict(self, state: object, questions: object) -> dict[str, object]:
                 return {
                     "answers": {
                         "STOP_NOW": {
@@ -129,6 +130,8 @@ class LayaFastPathTests(unittest.TestCase):
 
     def test_pinned_backend_rejects_upstream_license_mismatch(self) -> None:
         revision = "1c5edc17a7acd8701df6fc341c0d179f1c62c982"
+        def unreachable_loader(_path: str, _device: str | None) -> NoReturn:
+            self.fail("license mismatch reached the loader")
         backend = PinnedLayaBackend(
             model_id="convaiinnovations/laya",
             revision=revision,
@@ -136,7 +139,7 @@ class LayaFastPathTests(unittest.TestCase):
                 sha=revision, license="unknown"
             ),
             snapshot_fetcher=lambda _model, _revision: "C:/model",
-            agent_loader=lambda _path, _device: object(),
+            agent_loader=unreachable_loader,
         )
 
         with self.assertRaisesRegex(ValueError, "license"):
@@ -147,7 +150,7 @@ class LayaFastPathTests(unittest.TestCase):
 
         @dataclass
         class FakeAgent:
-            def predict(self, _state: object, _questions: object) -> dict[str, object]:
+            def predict(self, state: object, questions: object) -> dict[str, object]:
                 return {
                     "answers": {
                         "STOP_NOW": {
