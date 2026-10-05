@@ -4,7 +4,10 @@ Use a secure terminal/secret-manager delivery channel; never redirect the issued
 key into source control or ordinary logs. This CLI is not a public admin API.
 """
 import argparse
+import hashlib
+import hmac
 import json
+import re
 import sqlite3
 import time
 from pathlib import Path
@@ -16,6 +19,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--database", type=Path, required=True)
     commands = parser.add_subparsers(dest="command", required=True)
+    for name in ("backup", "restore"):
+        command = commands.add_parser(name)
+        command.add_argument("--destination", type=Path, required=True)
+        if name == "restore":
+            command.add_argument("--expected-sha256", required=True)
     for name in ("project", "issue", "keys", "revoke", "usage", "purge"):
         command = commands.add_parser(name)
         command.add_argument("--tenant", required=True)
@@ -34,10 +42,22 @@ def main() -> int:
             command.add_argument("--limit", type=int, default=1000)
     args = parser.parse_args()
     try:
+        if args.command in {"backup", "restore"} and not args.database.is_file():
+            raise ValueError("existing credential source required")
+        if args.command == "restore":
+            AccessStore.validate_path(args.database)
+            if re.fullmatch(r"[a-f0-9]{64}", args.expected_sha256) is None:
+                raise ValueError("approved backup hash required")
+            with args.database.open("rb") as artifact:
+                digest = hashlib.file_digest(artifact, "sha256").hexdigest()
+            if not hmac.compare_digest(digest, args.expected_sha256):
+                raise ValueError("credential backup hash mismatch")
         store = AccessStore(args.database)
-        if args.command == "project":
+        if args.command in {"backup", "restore"}:
+            result: object = store.copy_credentials(args.destination, restore=args.command == "restore")
+        elif args.command == "project":
             store.create_project(args.tenant, args.project, rpm=args.rpm, key_rps=args.key_rps)
-            result: object = {"status": "created"}
+            result = {"status": "created"}
         elif args.command == "issue":
             if not 1 <= args.ttl_seconds <= 31536000:
                 raise ValueError("bounded key expiration required")
