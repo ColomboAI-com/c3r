@@ -18,7 +18,6 @@ from .state_schema import ActionDefinition, ActionFamily, AuthorityPolicy, RiskC
 from .telemetry.ephemeral import EphemeralTraceSink
 from .verifier_firewall import VerifierDecision, VerifierFirewall, VerifierPolicy
 
-
 EphemeralStagingSink = EphemeralTraceSink
 
 

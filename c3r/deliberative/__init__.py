@@ -1,8 +1,18 @@
 """Interfaces for open and frontier deliberative models."""
 
 from importlib import import_module
+from typing import TYPE_CHECKING
 
 from .envelope import DeliberativeEnvelope, DeliberativeResult
+
+if TYPE_CHECKING:
+    from .defaults import (
+        DEFAULT_DEEPSEEK_API_MODEL,
+        DEFAULT_LANGUAGE_MODEL,
+        DEFAULT_OPENROUTER_MODEL,
+        DefaultModelProfile,
+        default_provider_config,
+    )
 
 
 def __getattr__(name: str):

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .trace import DecisionTrace
-from .trace_ledger import LedgerRecord, _record_hash, canonical_trace_json
+from .trace_ledger import LedgerRecord, canonical_trace_json, record_hash
 
 
 class EphemeralTraceSink:
@@ -12,4 +12,4 @@ class EphemeralTraceSink:
     def append(self, trace: DecisionTrace) -> LedgerRecord:
         canonical = canonical_trace_json(trace)
         genesis = "0" * 64
-        return LedgerRecord(genesis, _record_hash(genesis, canonical), canonical)
+        return LedgerRecord(genesis, record_hash(genesis, canonical), canonical)

@@ -2,11 +2,15 @@ import unittest
 
 from c3r.host_factory import ReadOnlyRequestFactory
 from c3r.state_schema import (
-    ActionDefinition, ActionFamily, AuthorityPolicy, RiskClass, ValueEstimate,
+    ActionDefinition,
+    ActionFamily,
+    AuthorityPolicy,
+    RiskClass,
+    ValueEstimate,
 )
 
 
-def factory(risk=RiskClass.READ_ONLY):
+def factory(risk: RiskClass = RiskClass.READ_ONLY) -> ReadOnlyRequestFactory:
     return ReadOnlyRequestFactory(
         definitions=(ActionDefinition(
             "inspect", ActionFamily.RETRIEVAL, "local", "search", risk,

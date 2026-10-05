@@ -29,13 +29,16 @@ class StateLimits:
             raise ValueError("all state limits must be positive")
 
 
+_DEFAULT_LIMITS = StateLimits()
+
+
 class StateCompiler:
     """Compile runtime history without inventing or dropping consequential evidence."""
 
     def __init__(
         self,
         minimum_confidence: float = 0.5,
-        limits: StateLimits = StateLimits(),
+        limits: StateLimits = _DEFAULT_LIMITS,
     ) -> None:
         if not 0.0 <= minimum_confidence <= 1.0:
             raise ValueError("minimum_confidence must be between zero and one")

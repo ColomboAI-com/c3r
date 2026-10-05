@@ -11,22 +11,26 @@ import os
 import re
 import sqlite3
 import stat
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from math import isfinite
 from pathlib import Path
 from threading import Lock
-from typing import Callable
+from typing import Self
 
 from .ledger_anchor import LedgerHead, capture_head
 from .trace import DecisionTrace
-from .trace_ledger import LedgerRecord, _record_hash
-
+from .trace_ledger import LedgerRecord, record_hash
 
 RETENTION_DAYS = 30
 _TOKEN = re.compile(r"[A-Za-z0-9_.:-]{1,128}\Z")
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
 _GENESIS = "0" * 64
+
+
+def _finite_number(value: object) -> bool:
+    return isinstance(value, (int, float)) and isfinite(value)
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,7 +85,7 @@ def _validate_trace(trace: DecisionTrace) -> None:
                 raise ValueError("trace failed redaction schema")
         elif isinstance(value, bool):
             pass
-        elif not isinstance(value, (int, float)) or not isfinite(value):
+        elif not _finite_number(value):
             raise ValueError("trace failed redaction schema")
 
 
@@ -97,7 +101,7 @@ class GovernedTraceStore:
         path: Path,
         *,
         grants: tuple[SourceGrant, ...],
-        clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         if not path.parent.is_dir() or path.is_symlink():
             raise ValueError("store parent must exist and path must not be a symlink")
@@ -139,7 +143,7 @@ class GovernedTraceStore:
             self._db.close()
             raise ValueError("governed trace hash chain is invalid")
 
-    def __enter__(self) -> GovernedTraceStore:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_args: object) -> None:
@@ -188,7 +192,7 @@ class GovernedTraceStore:
                     return None
             except (ValueError, TypeError, KeyError):
                 return None
-            if canonical != payload or _record_hash(prior, payload) != digest:
+            if canonical != payload or record_hash(prior, payload) != digest:
                 return None
             previous = digest
         return sequence, previous
@@ -244,7 +248,7 @@ class GovernedTraceStore:
                     "SELECT record_hash FROM records ORDER BY sequence DESC LIMIT 1"
                 ).fetchone()
                 previous = row[0] if row is not None else checkpoint
-                record = LedgerRecord(previous, _record_hash(previous, payload), payload)
+                record = LedgerRecord(previous, record_hash(previous, payload), payload)
                 self._db.execute(
                     "INSERT INTO records (run_id, collected_at, previous_hash, "
                     "record_hash, canonical_json) VALUES (?, ?, ?, ?, ?)",
@@ -287,6 +291,12 @@ class GovernedTraceStore:
             self._db.execute("VACUUM")
         return len(expired)
 
+    def validate_task(self, *, source_id: str, task_id: str) -> None:
+        """Validate a host-selected binding without exposing the source registry."""
+        grant = self._grants.get(source_id)
+        if grant is None or task_id not in grant.task_ids:
+            raise ValueError("unapproved source or task")
+
     def close(self) -> None:
         with self._lock:
             self._db.close()
@@ -300,9 +310,7 @@ class BoundGovernedTraceSink:
     """
 
     def __init__(self, store: GovernedTraceStore, *, source_id: str, task_id: str) -> None:
-        grant = store._grants.get(source_id)
-        if grant is None or task_id not in grant.task_ids:
-            raise ValueError("unapproved source or task")
+        store.validate_task(source_id=source_id, task_id=task_id)
         self._store = store
         self._source_id = source_id
         self._task_id = task_id

@@ -41,6 +41,7 @@ class C3RIngressServer(ThreadingHTTPServer):
         port: int = 8080,
         requests_per_minute: int = 60,
         max_in_flight: int = 16,
+        max_connections: int = 32,
         upstream_timeout_seconds: float = 5.0,
         access_store: AccessStore | None = None,
     ) -> None:
@@ -54,6 +55,9 @@ class C3RIngressServer(ThreadingHTTPServer):
             raise ValueError("client and upstream tokens must be different")
         if max_in_flight < 1 or upstream_timeout_seconds <= 0:
             raise ValueError("concurrency and timeout must be positive")
+        if type(max_connections) is not int or not 1 <= max_connections <= 4096:
+            raise ValueError("bounded accepted connection limit required")
+        self.connection_slots = BoundedSemaphore(max_connections)
         self.upstream_host = upstream_host
         self.upstream_port = upstream_port
         self.client_token = client_token
@@ -78,6 +82,29 @@ class C3RIngressServer(ThreadingHTTPServer):
         connection.settimeout(5.0)
         return connection, address
 
+    def process_request(self, request: socket.socket | tuple[bytes, socket.socket], client_address: object) -> None:
+        # Refuse before spawning a handler or parsing untrusted headers/bodies.
+        # This is a transport refusal, not an authenticated API usage outcome.
+        if not self.connection_slots.acquire(blocking=False):
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self.connection_slots.release()
+            raise
+
+    def process_request_thread(self, request: socket.socket | tuple[bytes, socket.socket], client_address: object) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.connection_slots.release()
+
+    def handle_error(self, request: socket.socket | tuple[bytes, socket.socket], client_address: object) -> None:
+        # Socketserver's default traceback may contain caller-controlled exception
+        # diagnostics. Closed/malformed transports must never export that data.
+        return
+
 
 class _IngressHandler(BaseHTTPRequestHandler):
     @property
@@ -86,6 +113,7 @@ class _IngressHandler(BaseHTTPRequestHandler):
     principal: Principal | None = None
     request_id: str = ""
     started: float = 0
+    usage_recorded: bool = False
 
     def log_message(self, format: str, *args: object) -> None:
         return
@@ -97,6 +125,12 @@ class _IngressHandler(BaseHTTPRequestHandler):
                          "method_not_allowed" if code == 501 else "invalid_request")
 
     def _send_error(self, status: int, code: str) -> None:
+        try:
+            self._record_usage(status, {})
+        except (OSError, sqlite3.Error):
+            # Store unavailability must still yield a sanitized refusal, not a
+            # second exception or an invented durable accounting record.
+            status, code = 503, "access_unavailable"
         value: dict[str, object] = {"error": code}
         if self.gateway.access_store is not None:
             category = {400: "invalid_request_error", 401: "authentication_error",
@@ -120,6 +154,7 @@ class _IngressHandler(BaseHTTPRequestHandler):
         self.request_id = "req_" + uuid4().hex
         self.principal = None
         self.started = time.monotonic()
+        self.usage_recorded = False
 
     def _scope_allowed(self) -> bool:
         if self.gateway.access_store is None:
@@ -136,7 +171,7 @@ class _IngressHandler(BaseHTTPRequestHandler):
         return self.principal is not None and self.gateway.access_store.admit(self.principal)
 
     def _record_usage(self, status: int, decoded: Mapping[str, object]) -> None:
-        if self.gateway.access_store is None or self.principal is None:
+        if self.gateway.access_store is None or self.principal is None or self.usage_recorded:
             return
         raw_usage = decoded.get("usage")
         raw_c3r = decoded.get("c3r")
@@ -154,7 +189,10 @@ class _IngressHandler(BaseHTTPRequestHandler):
             input_tokens=count(usage.get("input_tokens")), output_tokens=count(usage.get("output_tokens")),
             system_one_invocations=count(c3r.get("system_one_invocations")),
             system_two_invocations=count(c3r.get("system_two_invocations")),
+            invocation_basis=("adapter_transport_attempts"
+                              if c3r.get("invocation_basis") == "adapter_transport_attempts" else None),
         )
+        self.usage_recorded = True
 
     def _authorized(self) -> bool:
         # Tenant and project identity come only from the authenticated key.
@@ -246,7 +284,12 @@ class _IngressHandler(BaseHTTPRequestHandler):
                 self._send_error(response.status, "upstream_rejected")
                 return
         except (OSError, HTTPException, ValueError, sqlite3.Error):
-            if not disconnected.is_set():
+            if disconnected.is_set():
+                try:
+                    self._record_usage(499, {})
+                except (OSError, sqlite3.Error):
+                    pass
+            else:
                 self._send_error(503, "upstream_unavailable")
             return
         finally:

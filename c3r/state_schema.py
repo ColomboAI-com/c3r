@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Mapping
-
 
 SCHEMA_VERSION = "c3r.state.v1"
 
@@ -53,16 +52,18 @@ class RawState:
     available_action_families: tuple[ActionFamily, ...] = ()
     tool_summary: tuple[str, ...] = ()
     model_inventory: tuple[str, ...] = ()
-    budget: Mapping[str, float] = field(default_factory=dict)
-    runtime_summary: Mapping[str, str | float | bool] = field(default_factory=dict)
-    risk: Mapping[str, str | float | bool] = field(default_factory=dict)
+    budget: Mapping[str, float] = field(default_factory=dict[str, float])
+    runtime_summary: Mapping[str, str | float | bool] = field(
+        default_factory=dict[str, str | float | bool]
+    )
+    risk: Mapping[str, str | float | bool] = field(default_factory=dict[str, str | float | bool])
     reversibility: str = "unknown"
     approval_required: bool = False
     data_boundary: str = "unknown"
     rollback_state: str | None = None
     ambiguity: float = 0.0
     consequence: str = "low"
-    provenance: Mapping[str, Provenance] = field(default_factory=dict)
+    provenance: Mapping[str, Provenance] = field(default_factory=dict[str, Provenance])
 
 
 @dataclass(frozen=True, slots=True)

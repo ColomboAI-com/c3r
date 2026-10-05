@@ -1,19 +1,20 @@
 import math
 import time
 import unittest
+from collections.abc import Mapping
+from typing import cast
 
 from c3r.feature_flags import FeatureFlags
 from c3r.system_one.calibration import CalibrationKey, TemperatureCalibrator
-from c3r.system_one.clm_adapter import ClmAdapter, UPSTREAM_CLM_COMMIT
+from c3r.system_one.clm_adapter import UPSTREAM_CLM_COMMIT, ClmAdapter
 from c3r.system_one.fast_path import CalibratedFastPath
 from c3r.system_one.question_registry import TypedQuestion
 from tests.test_laya_fast_path import compiled_state
 
-
 REVISION = "a" * 64
 
 
-def ranked(payload: dict[str, object]) -> dict[str, object]:
+def ranked(payload: Mapping[str, object]) -> dict[str, object]:
     options = payload["answers"]
     assert isinstance(options, list)
     return {
@@ -21,7 +22,7 @@ def ranked(payload: dict[str, object]) -> dict[str, object]:
         "ranked": [
             {"rank": index + 1, "candidate": option, "prob": probability}
             for index, (option, probability) in enumerate(
-                zip(reversed(options), (0.9, 0.1), strict=True)
+                zip(reversed(cast(list[object], options)), (0.9, 0.1), strict=True)
             )
         ]
     }
@@ -53,7 +54,7 @@ class ClmAdapterTests(unittest.TestCase):
     def test_maps_ranked_probabilities_back_to_fixed_option_order(self) -> None:
         calls: list[object] = []
 
-        def transport(payload: object) -> dict[str, object]:
+        def transport(payload: Mapping[str, object]) -> dict[str, object]:
             calls.append(payload)
             assert isinstance(payload, dict)
             return ranked(payload)
@@ -75,12 +76,13 @@ class ClmAdapterTests(unittest.TestCase):
             (("NO", 0.1), ("YES", 0.1)),
         )
         for rows in invalid_rows:
-            response = {
+            response: dict[str, object] = {
                 "model": "clm-latest",
                 "ranked": [{"candidate": candidate, "prob": prob} for candidate, prob in rows],
             }
             with self.subTest(response=response), self.assertRaises(ValueError):
-                ClmAdapter(revision=REVISION, transport=lambda _payload: response).predict(
+                ClmAdapter(revision=REVISION,
+                           transport=lambda _payload, response=response: response).predict(
                     compiled_state(), (TypedQuestion("STOP_NOW", ("NO", "YES")),)
                 )
 

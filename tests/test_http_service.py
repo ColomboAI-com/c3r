@@ -1,22 +1,46 @@
 import json
 import threading
 import unittest
+from collections.abc import Mapping
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+from c3r.candidate_compiler import CandidateCompiler
+from c3r.cvoc import RobustCvocController
+from c3r.feature_flags import FeatureFlags
 from c3r.http_service import C3RHTTPServer
+from c3r.runtime import RuntimeRequest, StandaloneController
+from c3r.state_compiler import StateCompiler
+from c3r.telemetry.trace_ledger import TraceLedger
+from c3r.verifier_firewall import VerifierFirewall, VerifierPolicy
 from tests.test_runtime import controller, request
-
 
 TOKEN = "test-token-with-at-least-thirty-two-characters"
 
 
 class HostFactory:
-    def build(self, payload):
+    def build(self, payload: Mapping[str, object]) -> RuntimeRequest:
         if payload.get("goal") != "Find record":
             raise ValueError("unknown goal")
         # Client fields such as policy, estimates, approval and verifier are ignored.
         return request()
+
+
+class EffectCapableRuntime(StandaloneController):
+    """A normally initialized host advertising a forbidden capability."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            flags=FeatureFlags(), compiler=StateCompiler(), candidates=CandidateCompiler(),
+            cvoc=RobustCvocController(), ledger=TraceLedger(),
+            verifier=VerifierFirewall(
+                {}, VerifierPolicy(default_verifier="none"), attestation_key=b"fixture-key",
+            ),
+        )
+
+    @property
+    def effect_execution_enabled(self) -> bool:
+        return True
 
 
 class HTTPServiceTests(unittest.TestCase):
@@ -38,7 +62,7 @@ class HTTPServiceTests(unittest.TestCase):
         self.server.server_close()
         self.thread.join(timeout=2)
 
-    def post(self, payload, *, token=TOKEN):
+    def post(self, payload: Mapping[str, object], *, token: str = TOKEN):
         body = json.dumps(payload).encode()
         req = Request(
             self.base + "/v1/decisions",
@@ -89,9 +113,6 @@ class HTTPServiceTests(unittest.TestCase):
             )
 
     def test_effect_enabled_runtime_is_rejected(self) -> None:
-        class EffectCapableRuntime:
-            effect_execution_enabled = True
-
         with self.assertRaisesRegex(ValueError, "external effects"):
             C3RHTTPServer(
                 runtime=EffectCapableRuntime(),

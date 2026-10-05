@@ -19,10 +19,15 @@ class LedgerRecord:
     canonical_json: str
 
 
-def _record_hash(previous_hash: str, canonical_json: str) -> str:
+def record_hash(previous_hash: str, canonical_json: str) -> str:
     return hashlib.sha256(
         (previous_hash + "\n" + canonical_json).encode("utf-8")
     ).hexdigest()
+
+
+# Compatibility for callers of the historical private name. Shared sinks use
+# the public canonical hash interface rather than reaching into this module.
+_record_hash = record_hash
 
 
 def canonical_trace_json(trace: DecisionTrace) -> str:
@@ -51,7 +56,7 @@ class TraceLedger:
         canonical = canonical_trace_json(trace)
         with self._lock:
             previous = self._records[-1].record_hash if self._records else _GENESIS_HASH
-            record = LedgerRecord(previous, _record_hash(previous, canonical), canonical)
+            record = LedgerRecord(previous, record_hash(previous, canonical), canonical)
             self._records.append(record)
             return record
 
@@ -98,7 +103,7 @@ class TraceLedger:
                 return False
             if canonical != record.canonical_json:
                 return False
-            if _record_hash(previous, canonical) != record.record_hash:
+            if record_hash(previous, canonical) != record.record_hash:
                 return False
             previous = record.record_hash
         return True

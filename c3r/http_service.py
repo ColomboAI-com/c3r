@@ -23,6 +23,7 @@ from .internal_readiness import ReadinessProbe
 from .responses import ResponseEventStream, ResponsesService
 from .runtime import RuntimeRequest, StandaloneController
 from .system_one.inference import SystemOneInference
+from .telemetry.invocations import capture_invocations, with_invocations
 
 MAX_REQUEST_BYTES = 65_536
 
@@ -129,6 +130,7 @@ class _Handler(BaseHTTPRequestHandler):
         return
 
     def _send(self, status: int, value: Mapping[str, object]) -> None:
+        value = with_invocations(value)
         body = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
@@ -227,6 +229,9 @@ class _Handler(BaseHTTPRequestHandler):
             for name, data in events:
                 if client_gone.is_set():
                     break
+                response = data.get("response")
+                if isinstance(response, dict):
+                    data = {**data, "response": with_invocations(cast(Mapping[str, object], response))}
                 frame = ("event: " + name + "\n" + "data: "
                          + json.dumps(data, separators=(",", ":"), ensure_ascii=False)
                          + "\n\n").encode("utf-8")
@@ -288,6 +293,10 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(404, {"error": "not_found"})
 
     def do_POST(self) -> None:
+        with capture_invocations():
+            self._post()
+
+    def _post(self) -> None:
         if self.path not in {
             "/v1/decisions", "/v1/c3r/decide", "/v1/c3r/rank",
             "/v1/system-one", "/v1/c3r/execute", "/v1/responses",

@@ -6,8 +6,10 @@ from c3r.telemetry.trace import DecisionTrace
 
 
 class StagingHostTests(unittest.TestCase):
-    def test_staging_builder_cannot_enable_decisions_or_effects(self):
-        controller, factory = load_host_builder("c3r.staging_host:build")()
+    def test_staging_builder_cannot_enable_decisions_or_effects(self) -> None:
+        components = load_host_builder("c3r.staging_host:build")()
+        assert isinstance(components, tuple)
+        controller, factory = components
         self.assertFalse(controller.effect_execution_enabled)
         request = factory.build({"goal": "fixture", "current_subgoal": "check"})
         self.assertEqual(request.estimates, {})
@@ -15,7 +17,7 @@ class StagingHostTests(unittest.TestCase):
         self.assertEqual(outcome.reason, "C3R_DISABLED")
         self.assertIsNone(outcome.selected_action_id)
 
-    def test_staging_sink_has_no_row_store_or_cross_request_chain(self):
+    def test_staging_sink_has_no_row_store_or_cross_request_chain(self) -> None:
         trace = DecisionTrace(
             run_id="fixture_run", state_hash="a" * 64, access_level="internal",
             model_provider="fixture", candidate_ids=(), probabilities={},

@@ -21,7 +21,7 @@ Verifier = Callable[[ActionCandidate], VerifierDecision]
 @dataclass(frozen=True, slots=True)
 class VerifierPolicy:
     default_verifier: str
-    by_risk: Mapping[RiskClass, str] = field(default_factory=dict)
+    by_risk: Mapping[RiskClass, str] = field(default_factory=dict[RiskClass, str])
     version: str = "policy-v1"
 
     def select(self, candidate: ActionCandidate) -> str:
