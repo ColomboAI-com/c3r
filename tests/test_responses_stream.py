@@ -8,6 +8,7 @@ import time
 import unittest
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import cast
 
 from c3r.adapters.providers import ProviderAdapter, ProviderConfig, ProviderKind
 from c3r.host_factory import ReadOnlyRequestFactory
@@ -147,6 +148,10 @@ class ResponsesStreamTests(unittest.TestCase):
         self.assertIn("Check charges.", wire)
         self.assertNotIn("PRIVATE", wire)
         self.assertTrue(self.backend.requests[0]["stream"])
+        messages = cast(list[dict[str, str]], self.backend.requests[0]["messages"])
+        self.assertTrue(messages[0]["content"].startswith("C³-R — SYSTEM PROMPT\n"))
+        self.assertIn("C3R v0.1 RUNTIME BOUNDARY", messages[0]["content"])
+        self.assertEqual(messages[1], {"role": "user", "content": "Find record"})
         terminal = [json.loads(line[6:]) for line in wire.splitlines()
                     if line.startswith("data: ")][-1]["response"]
         self.assertEqual((terminal["c3r"]["system_one_invocations"],
