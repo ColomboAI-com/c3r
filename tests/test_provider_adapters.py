@@ -1,5 +1,7 @@
 import json
 import unittest
+from hashlib import sha256
+from typing import cast
 
 from c3r.adapters.providers import (
     DeliberationRequest,
@@ -13,6 +15,43 @@ from c3r.state_schema import ActionFamily
 
 
 class ProviderAdapterTests(unittest.TestCase):
+    def test_all_structured_codecs_use_the_supplied_prompt_and_retain_json_contract(self) -> None:
+        content = '{"plan":[],"assumptions":[],"uncertainty":[],"candidate_commitments":[],"requested_actions":[]}'
+        payloads: list[dict[str, object]] = []
+        def transport(
+            _url: str, _headers: dict[str, str], payload: dict[str, object],
+        ) -> TransportResponse:
+            payloads.append(payload)
+            body: dict[str, object]
+            if "system" in payload:
+                body = {"content": [{"text": content}]}
+            elif "systemInstruction" in payload:
+                body = {"candidates": [{"content": {"parts": [{"text": content}]}}]}
+            else:
+                body = {"choices": [{"message": {"content": content}}]}
+            return TransportResponse(200, body, 1)
+        for kind in (ProviderKind.OPENAI_COMPATIBLE, ProviderKind.ANTHROPIC, ProviderKind.GEMINI):
+            with self.subTest(kind=kind):
+                payloads.clear()
+                adapter = ProviderAdapter(ProviderConfig("fixture", kind,
+                    "https://provider.example/v1", "model", None), transport=transport)
+                adapter.deliberate(DeliberationRequest(state={"goal": "verify"}))
+                encoded = json.dumps(payloads[0], ensure_ascii=False)
+                self.assertIn("Created by ColomboAI Lab", encoded)
+                self.assertIn("Return only one JSON object", encoded)
+                if kind == ProviderKind.ANTHROPIC:
+                    system = payloads[0]["system"]
+                elif kind == ProviderKind.GEMINI:
+                    instruction = cast(dict[str, list[dict[str, str]]], payloads[0]["systemInstruction"])
+                    system = instruction["parts"][0]["text"]
+                else:
+                    messages = cast(list[dict[str, str]], payloads[0]["messages"])
+                    system = messages[0]["content"]
+                assert isinstance(system, str)
+                original = system.split("\n\nC3R v0.1 RUNTIME BOUNDARY", 1)[0]
+                self.assertEqual(sha256(original.encode()).hexdigest(),
+                    "6cae0e283d911b3166f02eb771c0f90a00df86f29211f82832dee0435320b608")
+
     def test_openai_compatible_adapter_returns_structured_result_and_usage(self) -> None:
         calls: list[tuple[str, dict[str, str], dict[str, object]]] = []
 

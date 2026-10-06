@@ -25,6 +25,9 @@ sdk-acceptance = ["openai==3.24.0"]
 [tool.setuptools.packages.find]
 include = ["c3r*"]
 
+[tool.setuptools.package-data]
+c3r = ["prompts/system.txt"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

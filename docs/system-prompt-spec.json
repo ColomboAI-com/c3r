@@ -1,0 +1,15 @@
+{
+  "scope": "Use the supplied ColomboAI C3R system prompt as model instructions, not executable controller policy",
+  "baseline": "a4f47b2ff453a362c50a6bed20e00012e8f672e6",
+  "requirements": [
+    "Preserve the supplied prompt text in a versioned package resource with only newline normalization",
+    "Use it for both bounded text generation and streaming generation",
+    "Use it for structured provider deliberation while retaining the enforced JSON contract and recommendation-only authority boundary",
+    "Do not add tool execution, waive calibration claims, override caller authorization or expose hidden reasoning",
+    "Keep user input separate from server-owned system instructions",
+    "Include the prompt resource in distributable Python packages and the existing API image build",
+    "Treat the changed API source as a new release candidate; preserve frozen PR8 and existing component evidence"
+  ],
+  "clm_note": "CLM is an action ranker, not a text-generating model; no unsupported prompt parameter is added to its ranking API",
+  "deployment_authorized_by_this_change": false
+}
