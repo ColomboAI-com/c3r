@@ -19,6 +19,17 @@ class LayaAdapter:
     revision: str
     backend: InferenceBackend
 
+    @property
+    def provider(self) -> str:
+        return "laya"
+
+    def rank_actions(
+        self, state: CompiledState, candidate_ids: tuple[str, ...],
+        *, deadline: float | None = None,
+    ) -> tuple[float, ...]:
+        """This legacy typed-question adapter has no action-ranking head."""
+        return ()
+
     def __post_init__(self) -> None:
         if self.model_id not in {
             "convaiinnovations/laya",
@@ -33,5 +44,6 @@ class LayaAdapter:
         self,
         state: CompiledState,
         questions: tuple[TypedQuestion, ...],
+        *, deadline: float | None = None,
     ) -> Mapping[str, tuple[float, ...]]:
         return self.backend(state, questions)
