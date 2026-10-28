@@ -17,6 +17,7 @@ from urllib.request import ProxyHandler, Request, build_opener
 from ..deliberative.envelope import DeliberativeResult
 from ..http_transport import NoRedirectHandler
 from ..state_schema import ActionFamily
+from ..telemetry.invocations import transport_attempt
 
 MAX_RESPONSE_BYTES = 65_536
 MAX_ARRAY_ITEMS = 32
@@ -396,6 +397,7 @@ class ProviderAdapter:
             payload["provider"] = {"zdr": True, "data_collection": "deny",
                                    "require_parameters": True, "allow_fallbacks": False}
         try:
+            transport_attempt("system_two")
             response = self._transport(self.config.base_url.rstrip("/") + "/chat/completions",
                                        headers, payload)
             size = len(json.dumps(response.body, allow_nan=False).encode())
@@ -479,6 +481,7 @@ class ProviderAdapter:
         try:
             if cancelled is not None and cancelled.is_set():
                 raise RuntimeError("generation cancelled")
+            transport_attempt("system_two")
             connection.connect()
             backend_socket = connection.sock
             if backend_socket is None:
@@ -508,6 +511,7 @@ class ProviderAdapter:
     def deliberate(self, request: DeliberationRequest) -> ProviderExecutionResult:
         state = json.dumps(dict(request.state), sort_keys=True, separators=(",", ":"))
         url, headers, payload = self._codec.build(self.config, state)
+        transport_attempt("system_two")
         response = self._transport(url, headers, payload)
         if len(json.dumps(response.body, separators=(",", ":")).encode()) > MAX_RESPONSE_BYTES:
             raise ValueError("provider response exceeds byte limit")

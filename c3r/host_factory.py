@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from math import isfinite
+from typing import cast
 from uuid import uuid4
 
 from .runtime import RuntimeRequest
 from .state_schema import ActionDefinition, AuthorityPolicy, RawState, RiskClass, ValueEstimate
-
 
 EstimateSource = Callable[[RawState], Mapping[str, ValueEstimate]]
 
@@ -49,9 +49,10 @@ class ReadOnlyRequestFactory:
         goal = _text(payload.get("goal"), "goal")
         current_subgoal = _text(payload.get("current_subgoal"), "current_subgoal")
         questions = payload.get("open_questions", [])
-        if not isinstance(questions, list) or len(questions) > 64:
+        if not isinstance(questions, list) or len(cast(list[object], questions)) > 64:
             raise ValueError("open_questions must be a bounded array")
-        open_questions = tuple(_text(item, "open_question") for item in questions)
+        question_values = cast(list[object], questions)
+        open_questions = tuple(_text(item, "open_question") for item in question_values)
         raw = RawState(
             goal=goal,
             current_subgoal=current_subgoal,
@@ -63,9 +64,7 @@ class ReadOnlyRequestFactory:
             budget={"remaining_usd": self._remaining_usd},
             data_boundary=self._data_boundary,
         )
-        estimates = self._estimate_source(raw)
-        if not isinstance(estimates, Mapping):
-            raise ValueError("host estimate source returned an invalid mapping")
+        estimates = _host_estimates(self._estimate_source(raw))
         return RuntimeRequest(
             raw_state=raw,
             definitions=self._definitions,
@@ -79,3 +78,12 @@ def _text(value: object, name: str) -> str:
     if not isinstance(value, str) or not value.strip() or len(value) > 4096:
         raise ValueError(f"{name} must be non-empty bounded text")
     return value
+
+
+def _host_estimates(value: object) -> Mapping[str, ValueEstimate]:
+    # Keep the runtime shape check even for an incorrectly implemented host
+    # callback; this does not claim to validate individual estimate values.
+    estimates = cast(Mapping[str, ValueEstimate], value) if isinstance(value, Mapping) else None
+    if estimates is None:
+        raise ValueError("host estimate source returned an invalid mapping")
+    return estimates

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
 import time
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Protocol
 
 from ..state_schema import CompiledState
@@ -15,9 +15,14 @@ from .question_registry import TypedQuestion
 
 
 class TypedInferenceAdapter(Protocol):
-    model_id: str
-    revision: str
-    provider: str
+    @property
+    def model_id(self) -> str: ...
+
+    @property
+    def revision(self) -> str: ...
+
+    @property
+    def provider(self) -> str: ...
 
     def predict(
         self, state: CompiledState, questions: tuple[TypedQuestion, ...],

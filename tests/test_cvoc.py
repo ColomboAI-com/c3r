@@ -19,6 +19,7 @@ class CvocControllerTests(unittest.TestCase):
             (local, frontier), estimates
         )
 
+        assert decision.selected is not None
         self.assertEqual(decision.selected.id, "frontier")
         self.assertAlmostEqual(decision.lower_bound, 0.5)
 

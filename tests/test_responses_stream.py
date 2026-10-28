@@ -19,12 +19,26 @@ from tests.test_runtime import controller
 TOKEN = "stream-test-token-with-at-least-thirty-two-characters"
 
 
+class _GenerationServer(ThreadingHTTPServer):
+    requests: list[dict[str, object]]
+    hold_headers: bool
+    headers_pending: threading.Event
+    hold_after_first: bool
+    fail_after_first: bool
+    finish_with_text: bool
+    release_next: threading.Event
+    abort_seen: threading.Event
+
+
 class _GenerationHandler(BaseHTTPRequestHandler):
-    def log_message(self, *_args):
+    def log_message(self, format: str, *args: object) -> None:
         return
 
-    def do_POST(self):
-        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+    def do_POST(self) -> None:
+        assert isinstance(self.server, _GenerationServer)
+        length_header = self.headers["Content-Length"]
+        assert length_header is not None
+        body = json.loads(self.rfile.read(int(length_header)))
         self.server.requests.append(body)
         if self.server.hold_headers:
             self.server.headers_pending.set()
@@ -38,7 +52,7 @@ class _GenerationHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.end_headers()
-        events = [
+        events: list[dict[str, object]] = [
             {"choices": [{"delta": {"content": "Check ", "reasoning_content": "PRIVATE"},
                           "finish_reason": None}]},
             {"choices": [{"delta": {"content": "charges."},
@@ -74,8 +88,8 @@ class _GenerationHandler(BaseHTTPRequestHandler):
 
 
 class ResponsesStreamTests(unittest.TestCase):
-    def setUp(self):
-        self.backend = ThreadingHTTPServer(("127.0.0.1", 0), _GenerationHandler)
+    def setUp(self) -> None:
+        self.backend = _GenerationServer(("127.0.0.1", 0), _GenerationHandler)
         self.backend.requests = []
         self.backend.hold_headers = False
         self.backend.headers_pending = threading.Event()
@@ -106,7 +120,7 @@ class ResponsesStreamTests(unittest.TestCase):
         self.api_thread = threading.Thread(target=self.api.serve_forever, daemon=True)
         self.api_thread.start()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self.backend.release_next.set()
         self.api.shutdown()
         self.api.server_close()
@@ -115,7 +129,7 @@ class ResponsesStreamTests(unittest.TestCase):
         self.backend.server_close()
         self.backend_thread.join(timeout=2)
 
-    def test_stream_emits_real_text_deltas_and_terminal_response(self):
+    def test_stream_emits_real_text_deltas_and_terminal_response(self) -> None:
         connection = HTTPConnection("127.0.0.1", self.api.server_port, timeout=3)
         connection.request("POST", "/v1/responses", body=json.dumps({
             "model": "c3r-core", "input": "Find record", "stream": True,
@@ -133,10 +147,15 @@ class ResponsesStreamTests(unittest.TestCase):
         self.assertIn("Check charges.", wire)
         self.assertNotIn("PRIVATE", wire)
         self.assertTrue(self.backend.requests[0]["stream"])
+        terminal = [json.loads(line[6:]) for line in wire.splitlines()
+                    if line.startswith("data: ")][-1]["response"]
+        self.assertEqual((terminal["c3r"]["system_one_invocations"],
+                          terminal["c3r"]["system_two_invocations"]), (0, 1))
 
-    def test_rejected_stream_does_not_start_backend_generation(self):
+    def test_rejected_stream_does_not_start_backend_generation(self) -> None:
         runtime, _ = controller(deliberative=True, accepted=False)
         self.api.runtime = runtime
+        assert self.api.responses is not None
         self.api.responses.runtime = runtime
         connection = HTTPConnection("127.0.0.1", self.api.server_port, timeout=3)
         connection.request("POST", "/v1/responses", body=json.dumps({
@@ -148,7 +167,7 @@ class ResponsesStreamTests(unittest.TestCase):
         connection.close()
         self.assertEqual(self.backend.requests, [])
 
-    def test_backend_error_emits_failed_terminal_event_without_private_reasoning(self):
+    def test_backend_error_emits_failed_terminal_event_without_private_reasoning(self) -> None:
         self.backend.fail_after_first = True
         connection = HTTPConnection("127.0.0.1", self.api.server_port, timeout=3)
         connection.request("POST", "/v1/responses", body=json.dumps({
@@ -162,7 +181,7 @@ class ResponsesStreamTests(unittest.TestCase):
         self.assertNotIn("event: response.completed", wire)
         self.assertNotIn("PRIVATE", wire)
 
-    def test_final_delta_with_finish_reason_is_not_lost(self):
+    def test_final_delta_with_finish_reason_is_not_lost(self) -> None:
         self.backend.finish_with_text = True
         connection = HTTPConnection("127.0.0.1", self.api.server_port, timeout=3)
         connection.request("POST", "/v1/responses", body=json.dumps({
@@ -175,7 +194,7 @@ class ResponsesStreamTests(unittest.TestCase):
         self.assertIn('"text":"Check charges."', wire)
         self.assertIn("event: response.completed", wire)
 
-    def test_disconnect_before_backend_headers_cancels_generation(self):
+    def test_disconnect_before_backend_headers_cancels_generation(self) -> None:
         self.api.generation_capacity = threading.BoundedSemaphore(1)
         self.backend.hold_headers = True
         body = json.dumps({"model": "c3r-core", "input": "Find record", "stream": True}).encode()
@@ -197,10 +216,13 @@ class ResponsesStreamTests(unittest.TestCase):
         response.read()
         second.close()
 
-    def test_disconnected_stream_releases_generation_capacity(self):
+    def test_disconnected_stream_releases_generation_capacity(self) -> None:
         self.api.generation_capacity = threading.BoundedSemaphore(1)
         self.backend.hold_after_first = True
         first = HTTPConnection("127.0.0.1", self.api.server_port, timeout=3)
+        first.connect()
+        client_socket = first.sock
+        assert client_socket is not None
         body = json.dumps({"model": "c3r-core", "input": "Find record", "stream": True})
         headers = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
         first.request("POST", "/v1/responses", body=body, headers=headers)
@@ -214,7 +236,7 @@ class ResponsesStreamTests(unittest.TestCase):
         self.assertEqual(refused.status, 429)
         refused.read()
         second.close()
-        first_response.fp.raw._sock.shutdown(socket.SHUT_RDWR)
+        client_socket.shutdown(socket.SHUT_RDWR)
         first_response.close()
         first.close()
         deadline = time.monotonic() + 1

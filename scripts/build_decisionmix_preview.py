@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
@@ -11,7 +11,6 @@ if str(REPOSITORY_ROOT) not in sys.path:
 
 from c3r.decisionmix import DecisionMixBuilder, DecisionMixRecord, SourceProvenance
 from c3r.state_schema import ActionFamily
-
 
 GENERATOR_REVISION = "0000000000000000000000000000000000000001"
 OUTPUT = REPOSITORY_ROOT / "data" / "decisionmix-v1-preview"

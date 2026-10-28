@@ -17,15 +17,17 @@ def _text(value: object, limit: int = 1024) -> str:
 
 
 def _mapping(value: object) -> Mapping[str, object]:
-    if not isinstance(value, dict):
+    mapping = cast(Mapping[str, object], value) if isinstance(value, dict) else None
+    if mapping is None:
         raise ValueError("object required")
-    return cast(Mapping[str, object], value)
+    return mapping
 
 
 def _list(value: object) -> list[object]:
-    if not isinstance(value, list):
+    sequence = cast(list[object], value) if isinstance(value, list) else None
+    if sequence is None:
         raise ValueError("array required")
-    return cast(list[object], value)
+    return sequence
 
 
 class SystemOneInference:

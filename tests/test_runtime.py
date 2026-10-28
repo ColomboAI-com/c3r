@@ -1,29 +1,34 @@
 import unittest
+from collections.abc import Callable, Mapping
 from dataclasses import replace
+from typing import cast
 
 from c3r.adapters.providers import ProviderExecutionResult
 from c3r.candidate_compiler import CandidateCompiler
 from c3r.cvoc import RobustCvocController
 from c3r.deliberative.envelope import DeliberativeResult
 from c3r.feature_flags import FeatureFlags
+from c3r.runtime import Deliberator as RuntimeDeliberator
 from c3r.runtime import RuntimeRequest, StandaloneController
 from c3r.state_compiler import StateCompiler
 from c3r.state_schema import (
+    ActionCandidate,
     ActionDefinition,
     ActionFamily,
     AuthorityPolicy,
+    CompiledState,
     Provenance,
     RawState,
     RiskClass,
     ValueEstimate,
 )
+from c3r.system_one.advisory import AdvisoryFastPath
 from c3r.system_one.calibration import TemperatureCalibrator
 from c3r.system_one.clm_adapter import ClmAdapter
 from c3r.system_one.fast_path import CalibratedFastPath, LayaFastPath
 from c3r.system_one.laya_adapter import LayaAdapter
 from c3r.telemetry.trace_ledger import TraceLedger
 from c3r.verifier_firewall import VerifierDecision, VerifierFirewall, VerifierPolicy
-
 
 KEY = b"verification-test-key"
 ACTION_ID = "lookup:0:local:policy"
@@ -71,9 +76,9 @@ def controller(
     system_one: bool = False,
     deliberative: bool = False,
     accepted: bool = True,
-    executor=None,
-    fast_path=None,
-    deliberator=None,
+    executor: Callable[[ActionCandidate], None] | None = None,
+    fast_path: CalibratedFastPath | AdvisoryFastPath | None = None,
+    deliberator: RuntimeDeliberator | None = None,
     system_one_provider: str = "clm",
 ) -> tuple[StandaloneController, TraceLedger]:
     ledger = TraceLedger()
@@ -103,7 +108,7 @@ def controller(
 
 class RuntimeTests(unittest.TestCase):
     def test_executor_configuration_is_rejected_before_any_effect(self) -> None:
-        effects = []
+        effects: list[ActionCandidate] = []
         with self.assertRaisesRegex(ValueError, "external effects"):
             controller(executor=effects.append)
 
@@ -172,7 +177,7 @@ class RuntimeTests(unittest.TestCase):
         fast_path = LayaFastPath(adapter=adapter, calibrator=TemperatureCalibrator({}))
 
         class Deliberator:
-            def deliberate(self, _state):
+            def deliberate(self, state: CompiledState) -> object:
                 return {"plan": ["inspect"]}
 
         runtime, _ = controller(
@@ -203,8 +208,11 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(outcome.reason, "SYSTEM_ONE_PROVIDER_MISMATCH")
 
     def test_clm_rank_is_advisory_and_abstains_without_calibration(self) -> None:
-        def rank(payload):
+        def rank(payload: Mapping[str, object]) -> Mapping[str, object]:
             options = payload["answers"]
+            if not isinstance(options, list):
+                raise TypeError("fixture answers must be a list")
+            options = tuple(str(option) for option in cast(list[object], options))
             probability = 1.0 / len(options)
             return {
                 "model": "clm-latest",
@@ -223,15 +231,16 @@ class RuntimeTests(unittest.TestCase):
         )
         outcome = runtime.run(request())
         self.assertEqual(outcome.reason, "SYSTEM_ONE_ABSTAINED_NO_PROVIDER")
+        assert outcome.fast_path is not None
         self.assertEqual(outcome.fast_path.candidate_probabilities, (1.0,))
         self.assertIn('"model_provider":"Contrastive-LM/CLM"', ledger.records[-1].canonical_json)
 
     def test_clm_outage_escalates_without_granting_authority(self) -> None:
-        def unavailable(_payload):
+        def unavailable(_payload: Mapping[str, object]) -> Mapping[str, object]:
             raise OSError("CLM unavailable")
 
         class Deliberator:
-            def deliberate(self, _state):
+            def deliberate(self, state: CompiledState) -> object:
                 return {"plan": ["inspect"]}
 
         runtime, ledger = controller(
@@ -251,7 +260,7 @@ class RuntimeTests(unittest.TestCase):
 
     def test_provider_usage_is_recorded_without_granting_authority(self) -> None:
         class Deliberator:
-            def deliberate(self, _state):
+            def deliberate(self, state: CompiledState) -> ProviderExecutionResult:
                 return ProviderExecutionResult(
                     DeliberativeResult(("inspect",), (), (), (), ()),
                     {"latency_ms": 12.0, "input_tokens": 10.0},
@@ -284,7 +293,7 @@ class RuntimeTests(unittest.TestCase):
 
     def test_model_requested_unsafe_action_never_reaches_executor(self) -> None:
         class Deliberator:
-            def deliberate(self, _state):
+            def deliberate(self, state: CompiledState) -> ProviderExecutionResult:
                 return ProviderExecutionResult(
                     DeliberativeResult((), (), (), (), ("delete all records",)),
                     {"latency_ms": 1.0}, "untrusted-model", "fixture",
@@ -308,11 +317,12 @@ class RuntimeTests(unittest.TestCase):
 
         self.assertEqual(outcome.route, "deliberative")
         self.assertFalse(runtime.effect_execution_enabled)
+        assert isinstance(outcome.deliberation, DeliberativeResult)
         self.assertEqual(outcome.deliberation.requested_actions, ("delete all records",))
 
     def test_provider_outage_falls_back_without_effect(self) -> None:
         class Deliberator:
-            def deliberate(self, _state):
+            def deliberate(self, state: CompiledState) -> object:
                 raise OSError("provider unavailable")
 
         runtime, _ = controller(deliberative=True, deliberator=Deliberator())

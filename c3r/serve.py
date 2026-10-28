@@ -52,9 +52,10 @@ def load_host_builder(reference: str) -> HostBuilder:
         raise ValueError("C3R_HOST_ENTRYPOINT must be module:function")
     module = importlib.import_module(module_name)
     builder = getattr(module, attribute)
-    if not callable(builder):
+    callable_builder = cast(HostBuilder, builder) if callable(builder) else None
+    if callable_builder is None:
         raise ValueError("C3R_HOST_ENTRYPOINT is not callable")
-    return cast(HostBuilder, builder)
+    return callable_builder
 
 
 def build_servers(

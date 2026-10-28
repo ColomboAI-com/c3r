@@ -3,7 +3,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 
 from c3r.telemetry.trace import DecisionTrace
-from c3r.telemetry.trace_ledger import TraceLedger
+from c3r.telemetry.trace_ledger import LedgerRecord, TraceLedger
 
 
 def trace(run_id: str) -> DecisionTrace:
@@ -52,8 +52,10 @@ class TraceLedgerTests(unittest.TestCase):
 
     def test_concurrent_appends_keep_one_valid_chain(self) -> None:
         ledger = TraceLedger()
+        def append(index: int) -> LedgerRecord:
+            return ledger.append(trace(f"run-{index}"))
         with ThreadPoolExecutor(max_workers=8) as pool:
-            list(pool.map(lambda index: ledger.append(trace(f"run-{index}")), range(100)))
+            list(pool.map(append, range(100)))
 
         self.assertEqual(len(ledger.records), 100)
         self.assertTrue(TraceLedger.verify(ledger.records))

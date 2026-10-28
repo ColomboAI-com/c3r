@@ -19,7 +19,7 @@ from c3r.staging_host import build as staging_build
 from c3r.state_compiler import StateCompiler
 from c3r.telemetry.ephemeral import EphemeralTraceSink
 from c3r.verifier_firewall import VerifierFirewall, VerifierPolicy
-from tests.test_http_service import HostFactory
+from tests.test_http_service import EffectCapableRuntime, HostFactory
 from tests.test_runtime import controller
 
 CLIENT_TOKEN = "client-token-with-at-least-thirty-two-characters"
@@ -49,7 +49,7 @@ class ServeTests(unittest.TestCase):
                        "C3R_INTERNAL_READY_TOKEN": "internal-test-token-never-an-api-token"})
         result = subprocess.run([sys.executable, "-m", "c3r.serve"],
                                 env={**os.environ, **values}, capture_output=True,
-                                text=True, timeout=3)
+                                text=True, timeout=3, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("C3R_INTERNAL_READY_PORT", result.stderr)
 
@@ -106,7 +106,7 @@ class ServeTests(unittest.TestCase):
                        "C3R_DELIBERATIVE": "true", "C3R_CLM_CONTAINER_DIGEST": "sha256:" + "a" * 64})
         result = subprocess.run([sys.executable, "-m", "c3r.serve"],
                                 env={**os.environ, **values}, capture_output=True,
-                                text=True, timeout=5)
+                                text=True, timeout=5, check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("C3R_API_ACCESS_DB", result.stderr)
 
@@ -131,9 +131,6 @@ class ServeTests(unittest.TestCase):
             build_servers(values, builder_loader=lambda _: lambda: (controller()[0], HostFactory()))
 
     def test_effect_enabled_host_is_rejected(self):
-        class EffectCapableRuntime:
-            effect_execution_enabled = True
-
         with self.assertRaisesRegex(ValueError, "recommendation-only"):
             build_servers(
                 config(),

@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import sys
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -19,8 +19,7 @@ if str(REPOSITORY_ROOT) not in sys.path:
 from c3r.telemetry.governed_store import GovernedTraceStore, SourceGrant
 from c3r.telemetry.trace import DecisionTrace
 
-
-START = datetime(2026, 9, 23, 0, 0, tzinfo=timezone.utc)
+START = datetime(2026, 9, 23, 0, 0, tzinfo=UTC)
 SOURCE_ID = "c3r_fixture_review"
 TASK_ID = "fixture_task_001"
 
@@ -58,38 +57,37 @@ def run() -> dict[str, object]:
         task_ids=frozenset({TASK_ID}), rights_attested=True,
     )
     clock = [START]
-    with TemporaryDirectory(prefix="c3r-trace-review-") as directory:
-        with GovernedTraceStore(
-            Path(directory) / "trace.sqlite3", grants=(grant,), clock=lambda: clock[0],
-        ) as store:
-            first = store.append(_trace("fixture_run_001"), source_id=SOURCE_ID, task_id=TASK_ID)
-            checks = {
-                "approved_fixture_admitted": len(store.records()) == 1,
-                "unapproved_source_rejected": _rejects(lambda: store.append(
-                    _trace("fixture_run_002"), source_id="customer_logs", task_id=TASK_ID,
-                ), "unapproved source or task"),
-                "free_text_rejected": _rejects(lambda: store.append(
-                    _trace("fixture_run_003", task_outcome={"status": "email me at a@example.com"}),
-                    source_id=SOURCE_ID, task_id=TASK_ID,
-                ), "redaction"),
-                "artifact_reference_rejected": _rejects(lambda: store.append(
-                    _trace("fixture_run_004", artifact_refs=("private_artifact",)),
-                    source_id=SOURCE_ID, task_id=TASK_ID,
-                ), "redaction"),
-            }
-            checks["rejected_rows_not_persisted"] = len(store.records()) == 1
-            clock[0] = START + timedelta(days=31)
-            checks["overdue_purge_blocks_collection"] = _rejects(lambda: store.append(
-                _trace("fixture_run_005"), source_id=SOURCE_ID, task_id=TASK_ID,
-            ), "retention purge overdue")
-            checks["local_expired_row_purged"] = store.purge_expired() == 1
-            checks["checkpoint_chain_verifies"] = store.verify() and not store.records()
-            second = store.append(
-                _trace("fixture_run_006"), source_id=SOURCE_ID, task_id=TASK_ID,
-            )
-            checks["post_purge_chain_continues"] = (
-                second.previous_hash == first.record_hash and store.verify()
-            )
+    with TemporaryDirectory(prefix="c3r-trace-review-") as directory, GovernedTraceStore(
+        Path(directory) / "trace.sqlite3", grants=(grant,), clock=lambda: clock[0],
+    ) as store:
+        first = store.append(_trace("fixture_run_001"), source_id=SOURCE_ID, task_id=TASK_ID)
+        checks = {
+            "approved_fixture_admitted": len(store.records()) == 1,
+            "unapproved_source_rejected": _rejects(lambda: store.append(
+                _trace("fixture_run_002"), source_id="customer_logs", task_id=TASK_ID,
+            ), "unapproved source or task"),
+            "free_text_rejected": _rejects(lambda: store.append(
+                _trace("fixture_run_003", task_outcome={"status": "email me at a@example.com"}),
+                source_id=SOURCE_ID, task_id=TASK_ID,
+            ), "redaction"),
+            "artifact_reference_rejected": _rejects(lambda: store.append(
+                _trace("fixture_run_004", artifact_refs=("private_artifact",)),
+                source_id=SOURCE_ID, task_id=TASK_ID,
+            ), "redaction"),
+        }
+        checks["rejected_rows_not_persisted"] = len(store.records()) == 1
+        clock[0] = START + timedelta(days=31)
+        checks["overdue_purge_blocks_collection"] = _rejects(lambda: store.append(
+            _trace("fixture_run_005"), source_id=SOURCE_ID, task_id=TASK_ID,
+        ), "retention purge overdue")
+        checks["local_expired_row_purged"] = store.purge_expired() == 1
+        checks["checkpoint_chain_verifies"] = store.verify() and not store.records()
+        second = store.append(
+            _trace("fixture_run_006"), source_id=SOURCE_ID, task_id=TASK_ID,
+        )
+        checks["post_purge_chain_continues"] = (
+            second.previous_hash == first.record_hash and store.verify()
+        )
     return {
         "evidence_kind": "non_sensitive_local_fixture_dry_run",
         "live_trace_collection_enabled": False,

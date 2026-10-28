@@ -1,8 +1,8 @@
 import json
-from dataclasses import replace
-from pathlib import Path
 import tempfile
 import unittest
+from dataclasses import replace
+from pathlib import Path
 
 from c3r.decisionmix import (
     DecisionMixBuilder,

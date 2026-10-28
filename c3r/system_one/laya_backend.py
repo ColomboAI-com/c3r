@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
-import math
+from importlib import import_module
 from typing import Protocol, cast
 
 from ..state_schema import CompiledState
@@ -30,6 +31,16 @@ SnapshotFetcher = Callable[[str, str], str]
 AgentLoader = Callable[[str, str | None], LayaAgent]
 
 
+class _SnapshotDownloader(Protocol):
+    def __call__(
+        self, *, repo_id: str, revision: str, allow_patterns: list[str]
+    ) -> str: ...
+
+
+class _SdkAgentLoader(Protocol):
+    def __call__(self, path: str, *, device: str | None) -> LayaAgent: ...
+
+
 def _resolve_metadata(model_id: str, revision: str) -> HubModelMetadata:
     try:
         from huggingface_hub import HfApi
@@ -37,7 +48,7 @@ def _resolve_metadata(model_id: str, revision: str) -> HubModelMetadata:
         raise RuntimeError("install the 'laya' extra to use the live Laya backend") from error
     info = HfApi().model_info(repo_id=model_id, revision=revision)
     card_data = info.card_data
-    if hasattr(card_data, "to_dict"):
+    if card_data is not None and hasattr(card_data, "to_dict"):
         card_data = card_data.to_dict()
     license_name = str((card_data or {}).get("license", ""))
     return HubModelMetadata(sha=str(info.sha), license=license_name)
@@ -45,9 +56,15 @@ def _resolve_metadata(model_id: str, revision: str) -> HubModelMetadata:
 
 def _fetch_snapshot(model_id: str, revision: str) -> str:
     try:
-        from huggingface_hub import snapshot_download
+        hub = import_module("huggingface_hub")
     except ImportError as error:
         raise RuntimeError("install the 'laya' extra to use the live Laya backend") from error
+    download: object = getattr(hub, "snapshot_download", None)
+    if not callable(download):
+        raise TypeError("installed Hub SDK has no snapshot_download callable")
+    # Describe only the documented keyword subset used here, not the SDK's
+    # unrelated optional parameters. Callability is checked, not attested.
+    snapshot_download = cast(_SnapshotDownloader, download)
     return str(
         snapshot_download(
             repo_id=model_id,
@@ -66,10 +83,16 @@ def _fetch_snapshot(model_id: str, revision: str) -> str:
 
 def _load_agent(path: str, device: str | None) -> LayaAgent:
     try:
-        import laya
+        laya = import_module("laya")
     except ImportError as error:
         raise RuntimeError("install the 'laya' extra to use the live Laya backend") from error
-    return cast(LayaAgent, laya.load(path, device=device))
+    load: object = getattr(laya, "load", None)
+    if not callable(load):
+        raise TypeError("installed Laya SDK has no load callable")
+    # The optional SDK contract is load(path, device=...) -> prediction agent;
+    # this annotation does not grant its predictions authority or calibration.
+    loader = cast(_SdkAgentLoader, load)
+    return loader(path, device=device)
 
 
 class PinnedLayaBackend:

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from threading import Lock
-import time
 from typing import Protocol
 
 from .authority import action_fingerprint, attestation_matches

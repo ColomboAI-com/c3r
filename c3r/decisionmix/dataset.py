@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
 import hashlib
 import json
-from pathlib import Path
 import re
-from typing import Mapping
-
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass
+from pathlib import Path
 
 SCHEMA_VERSION = "c3r.decisionmix.v1"
 SPLITS = ("train", "validation", "test")
@@ -57,7 +56,7 @@ class DecisionMixRecord:
 
 
 def deterministic_split(record_id: str, *, seed: str) -> str:
-    digest = hashlib.sha256(f"{seed}\x00{record_id}".encode("utf-8")).digest()
+    digest = hashlib.sha256(f"{seed}\x00{record_id}".encode()).digest()
     bucket = int.from_bytes(digest[:8], "big") % 100
     if bucket < 80:
         return "train"

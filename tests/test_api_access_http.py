@@ -138,11 +138,37 @@ class APIAccessHTTPTests(unittest.TestCase):
         self.assertEqual((status, error["type"]), (403, "permission_error"))
         self.assertEqual(error["request_id"], request_id)
 
+    def test_authenticated_refusal_has_one_payload_free_outcome(self) -> None:
+        status, _, request_id = self.call("/v1/responses", method="POST", payload={
+            "model": "c3r-core", "input": "PRIVATE_REFUSAL_MARKER"})
+        rows = self.store.project_usage("tenant-a", "project-a")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0]["request_id"], rows[0]["status"]), (request_id, status))
+        self.assertEqual(status, 403)
+        self.assertIsNone(rows[0]["system_one_invocations"])
+        self.assertNotIn("PRIVATE_REFUSAL_MARKER", json.dumps(rows))
+
     def test_revoked_and_expired_keys_cannot_infer(self) -> None:
         self.store.revoke_key("tenant-a", "project-a", self.key.key_id)
         self.assertEqual(self.call("/v1/models")[0], 401)
         expired = self.store.issue_key("tenant-a", "project-a", {"models:read"}, expires_at=1)
         self.assertEqual(self.call("/v1/models", key=expired.secret)[0], 401)
+
+    def test_operator_revoke_cannot_claim_success_for_another_projects_key(self) -> None:
+        command = [sys.executable, "-m", "c3r.key_management", "--database",
+                   str(self.store.path), "revoke", "--tenant", "tenant-a",
+                   "--key-id", self.key.key_id, "--project"]
+        wrong_project = subprocess.run(command + ["other-project"], capture_output=True,
+                                       text=True, timeout=5, check=False)
+        self.assertEqual(wrong_project.returncode, 1)
+        self.assertIn("error", json.loads(wrong_project.stdout))
+        self.assertNotIn(self.key.secret, wrong_project.stdout)
+        self.assertEqual(self.call("/v1/models")[0], 200)
+        own_project = subprocess.run(command + ["project-a"], capture_output=True,
+                                     text=True, timeout=5, check=False)
+        self.assertEqual(own_project.returncode, 0)
+        self.assertEqual(json.loads(own_project.stdout), {"status": "revoked"})
+        self.assertEqual(self.call("/v1/models")[0], 401)
 
     def test_project_rate_limit_is_shared_by_its_keys_not_other_tenants(self) -> None:
         self.store.create_project("tenant-b", "project-a", rpm=1)
@@ -184,6 +210,27 @@ class APIAccessHTTPTests(unittest.TestCase):
         self.assertIsNone(rows[0]["allocated_cost_usd"])
         self.assertNotIn("PRIVATE_", result.stdout)
         self.assertNotIn(key.secret, self.store.path.read_bytes().decode("latin1"))
+
+    def test_operator_metadata_purge_removes_only_aged_rows_in_selected_project(self) -> None:
+        self.store.clock = lambda: 1.0
+        self.assertEqual(self.call("/v1/models")[0], 200)
+        self.store.create_project("tenant-b", "project-a")
+        other = self.store.issue_key("tenant-b", "project-a", {"models:read"})
+        self.assertEqual(self.call("/v1/models", key=other.secret)[0], 200)
+        self.store.clock = time.time
+        self.assertEqual(self.call("/v1/models")[0], 200)
+        result = subprocess.run([sys.executable, "-m", "c3r.key_management", "--database",
+                                 str(self.store.path), "purge", "--tenant", "tenant-a",
+                                 "--project", "project-a", "--retention-seconds", "86400",
+                                 "--limit", "10"], capture_output=True, text=True, timeout=5,
+                                check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        proof = json.loads(result.stdout)
+        self.assertEqual((proof["usage_deleted"], proof["audit_deleted"]), (1, 1))
+        self.assertFalse(proof["backup_deletion_verified"])
+        self.assertEqual(len(self.store.project_usage("tenant-a", "project-a")), 1)
+        self.assertEqual(len(self.store.project_usage("tenant-b", "project-a")), 1)
+        self.assertEqual(self.call("/v1/models")[0], 200)  # Key was not deleted.
 
     def test_stream_is_forwarded_before_generation_finishes(self) -> None:
         key = self.store.issue_key("tenant-a", "project-a", {"responses:write"})
@@ -258,6 +305,13 @@ class APIAccessHTTPTests(unittest.TestCase):
                 break
             time.sleep(0.05)
         self.assertEqual(status, 200)
+        rows = self.store.project_usage("tenant-a", "project-a")
+        cancelled = [row for row in rows if row["status"] == 499]
+        self.assertEqual(len(cancelled), 1)
+        self.assertIsNone(cancelled[0]["system_one_invocations"])
+        self.assertIsNone(cancelled[0]["system_two_invocations"])
+        self.assertNotIn("wait_headers", json.dumps(rows))
+        self.assertEqual(len({row["request_id"] for row in rows}), len(rows))
 
 
 if __name__ == "__main__":

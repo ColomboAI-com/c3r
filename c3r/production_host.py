@@ -48,9 +48,10 @@ class ProviderReadiness:
         if len(body) > 65536:
             raise ValueError("oversized provider readback")
         value = json.loads(body)
-        if not isinstance(value, dict):
+        mapping = cast(Mapping[str, object], value) if isinstance(value, dict) else None
+        if mapping is None:
             raise ValueError("invalid provider readback")
-        return cast(Mapping[str, object], value)
+        return mapping
 
     def _system_one(self) -> bool:
         try:

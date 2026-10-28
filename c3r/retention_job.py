@@ -12,11 +12,10 @@ import os
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Protocol
+from datetime import UTC, datetime, timedelta
+from typing import Protocol, cast
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
-
 
 DELETE_AFTER_DAYS = 28
 _BUCKET = re.compile(r"colomboai-c3r-staging-traces-([0-9]{12})\Z")
@@ -62,10 +61,10 @@ def _verify_runtime_project(bucket: str, project_number: str) -> None:
 
 
 def _created_at(raw: str) -> datetime:
-    parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    parsed = datetime.fromisoformat(raw)
     if parsed.tzinfo is None:
         raise ValueError("object creation time must include UTC offset")
-    return parsed.astimezone(timezone.utc)
+    return parsed.astimezone(UTC)
 
 
 def purge(client: ObjectClient, *, now: datetime) -> dict[str, object]:
@@ -118,9 +117,11 @@ class GcsJsonClient:
             if method == "DELETE":
                 return None
             data = json.load(response)
-        if not isinstance(data, dict):
+        # JSON object keys are strings; their values remain untrusted objects.
+        object_data = cast(dict[str, object], data) if isinstance(data, dict) else None
+        if object_data is None:
             raise ValueError("invalid GCS response")
-        return data
+        return object_data
 
     def list_all(self) -> tuple[StoredObject, ...]:
         found: list[StoredObject] = []
@@ -134,13 +135,15 @@ class GcsJsonClient:
             data = self._request("GET", self._storage_api + "?" + urlencode(query))
             assert data is not None
             items = data.get("items", [])
-            if not isinstance(items, list):
+            object_items = cast(list[object], items) if isinstance(items, list) else None
+            if object_items is None:
                 raise ValueError("invalid GCS object list")
-            for raw in items:
-                if not isinstance(raw, dict):
+            for raw in object_items:
+                metadata = cast(Mapping[object, object], raw) if isinstance(raw, dict) else None
+                if metadata is None:
                     raise ValueError("invalid GCS object metadata")
                 name, generation, created = (
-                    raw.get("name"), raw.get("generation"), raw.get("timeCreated")
+                    metadata.get("name"), metadata.get("generation"), metadata.get("timeCreated")
                 )
                 if not isinstance(name, str) or not name or not isinstance(created, str):
                     raise ValueError("invalid GCS object metadata")
@@ -170,10 +173,9 @@ class GcsJsonClient:
 
 def main() -> None:
     bucket = bucket_from_environment(os.environ)
-    result = purge(GcsJsonClient(bucket), now=datetime.now(timezone.utc))
+    result = purge(GcsJsonClient(bucket), now=datetime.now(UTC))
     print(json.dumps(result, sort_keys=True))
 
 
 if __name__ == "__main__":
     main()
-
