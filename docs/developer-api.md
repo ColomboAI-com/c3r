@@ -41,7 +41,8 @@ import os
 from openai import OpenAI
 
 client = OpenAI(api_key=os.environ["C3R_API_KEY"],
-                base_url=os.environ["C3R_BASE_URL"].rstrip("/") + "/v1")
+                base_url=os.environ["C3R_BASE_URL"].rstrip("/") + "/v1",
+                max_retries=0)
 response = client.responses.create(model="c3r-core", input="Recommend the safest next computation.",
                                    store=False, max_output_tokens=512)
 print(response.output_text)
@@ -50,7 +51,7 @@ print(response.output_text)
 ```typescript
 import OpenAI from "openai";
 const client = new OpenAI({ apiKey: process.env.C3R_API_KEY,
-  baseURL: `${process.env.C3R_BASE_URL!.replace(/\/$/, "")}/v1` });
+  baseURL: `${process.env.C3R_BASE_URL!.replace(/\/$/, "")}/v1`, maxRetries: 0 });
 const response = await client.responses.create({ model: "c3r-core",
   input: "Recommend the safest next computation.", store: false, max_output_tokens: 512 });
 console.log(response.output_text);
@@ -62,6 +63,12 @@ a Responses text subset, not support for tools, images, background jobs, stored
 conversations or every OpenAI API feature. See the
 [official streaming guide](https://developers.openai.com/api/docs/guides/streaming-responses)
 for the SDK event-consumption pattern.
+
+The examples disable automatic SDK retries. The official SDKs otherwise retry
+some connection failures and HTTP errors; see the [Python retry settings](https://developers.openai.com/api/reference/python#retries)
+and [JavaScript retry settings](https://developers.openai.com/api/reference/typescript#retries).
+Configure application, SDK, proxy and queue retry behavior together so one
+logical task cannot silently become multiple generation attempts.
 
 ## Models and specialist endpoints
 
@@ -150,6 +157,30 @@ Use this identifier for support; never send a key, prompt or private output.
 `501` remains intentional for `/v1/c3r/execute`. Legacy private staging mode
 retains its existing error/auth contract and must not be mistaken for public
 developer-key mode.
+
+### Retries and uncertain outcomes
+
+C3R v0.1 does not provide request deduplication, stored-response retrieval or an
+idempotent replay guarantee. An `Idempotency-Key` header does not create that
+guarantee. The generated `x-request-id` is a support/accounting identifier, not
+a reusable execution token. A repeated POST is a new request and may consume
+generation resources again.
+
+After a timeout, disconnect, interrupted stream or server error following
+dispatch, the client may not know whether generation ran. Keep that task in an
+uncertain state with its existing budget exposure and request ID, if received;
+do not mark it unexecuted, settle unknown cost as zero or replay it automatically.
+Stopping the client stream requests cancellation but does not prove that no
+upstream work occurred. A later retry needs the application's explicit bounded
+policy and reconciliation of the prior attempt. Known authentication, schema or
+scope refusals should be corrected rather than retried unchanged. Handle a
+confirmed rate/capacity refusal within application limits; do not multiply it
+through nested SDK and queue retry loops.
+
+Applications must also inspect Responses `status`: HTTP 200 with
+`status:incomplete` is not a completed result. Token usage or request-local
+transport-attempt counts do not establish a measured monetary charge; the
+cost/retention contract described below remains separate.
 
 ## Security, privacy and usage
 
