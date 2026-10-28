@@ -18,7 +18,8 @@ from c3r.state_schema import (
     ValueEstimate,
 )
 from c3r.system_one.calibration import TemperatureCalibrator
-from c3r.system_one.fast_path import LayaFastPath
+from c3r.system_one.clm_adapter import ClmAdapter
+from c3r.system_one.fast_path import CalibratedFastPath, LayaFastPath
 from c3r.system_one.laya_adapter import LayaAdapter
 from c3r.telemetry.trace_ledger import TraceLedger
 from c3r.verifier_firewall import VerifierDecision, VerifierFirewall, VerifierPolicy
@@ -73,6 +74,7 @@ def controller(
     executor=None,
     fast_path=None,
     deliberator=None,
+    system_one_provider: str = "clm",
 ) -> tuple[StandaloneController, TraceLedger]:
     ledger = TraceLedger()
     verifier = VerifierFirewall(
@@ -85,6 +87,7 @@ def controller(
             enabled_requested=enabled,
             system_one_requested=system_one,
             deliberative_requested=deliberative,
+            system_one_provider=system_one_provider,
         ),
         compiler=StateCompiler(),
         candidates=CandidateCompiler(),
@@ -176,6 +179,7 @@ class RuntimeTests(unittest.TestCase):
             system_one=True,
             deliberative=True,
             fast_path=fast_path,
+            system_one_provider="laya",
             deliberator=Deliberator(),
         )
         outcome = runtime.run(request())
@@ -184,6 +188,66 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(outcome.reason, "SYSTEM_ONE_ABSTAINED")
         self.assertIsNone(outcome.selected_action_id)
         self.assertFalse(runtime.effect_execution_enabled)
+
+    def test_default_clm_never_silently_runs_laya(self) -> None:
+        adapter = LayaAdapter(
+            "convaiinnovations/laya",
+            "1c5edc17a7acd8701df6fc341c0d179f1c62c982",
+            backend=lambda _state, _questions: {},
+        )
+        runtime, _ = controller(
+            system_one=True,
+            fast_path=LayaFastPath(adapter=adapter, calibrator=TemperatureCalibrator({})),
+        )
+        outcome = runtime.run(request())
+        self.assertEqual(outcome.reason, "SYSTEM_ONE_PROVIDER_MISMATCH")
+
+    def test_clm_rank_is_advisory_and_abstains_without_calibration(self) -> None:
+        def rank(payload):
+            options = payload["answers"]
+            probability = 1.0 / len(options)
+            return {
+                "model": "clm-latest",
+                "ranked": [
+                    {"candidate": option, "prob": probability}
+                    for option in options
+                ],
+            }
+
+        adapter = ClmAdapter(revision="a" * 64, transport=rank)
+        runtime, ledger = controller(
+            system_one=True,
+            fast_path=CalibratedFastPath(
+                adapter=adapter, calibrator=TemperatureCalibrator({})
+            ),
+        )
+        outcome = runtime.run(request())
+        self.assertEqual(outcome.reason, "SYSTEM_ONE_ABSTAINED_NO_PROVIDER")
+        self.assertEqual(outcome.fast_path.candidate_probabilities, (1.0,))
+        self.assertIn('"model_provider":"Contrastive-LM/CLM"', ledger.records[-1].canonical_json)
+
+    def test_clm_outage_escalates_without_granting_authority(self) -> None:
+        def unavailable(_payload):
+            raise OSError("CLM unavailable")
+
+        class Deliberator:
+            def deliberate(self, _state):
+                return {"plan": ["inspect"]}
+
+        runtime, ledger = controller(
+            system_one=True,
+            deliberative=True,
+            fast_path=CalibratedFastPath(
+                adapter=ClmAdapter(revision="a" * 64, transport=unavailable),
+                calibrator=TemperatureCalibrator({}),
+            ),
+            deliberator=Deliberator(),
+        )
+        outcome = runtime.run(request())
+        self.assertEqual(outcome.route, "deliberative")
+        self.assertEqual(outcome.reason, "SYSTEM_ONE_FAILURE")
+        self.assertIsNone(outcome.selected_action_id)
+        self.assertTrue(TraceLedger.verify(ledger.records))
 
     def test_provider_usage_is_recorded_without_granting_authority(self) -> None:
         class Deliberator:

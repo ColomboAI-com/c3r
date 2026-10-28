@@ -4,12 +4,30 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+import time
+from collections.abc import Mapping
+from typing import Protocol
 
 from ..state_schema import CompiledState
 from .abstention import should_abstain
 from .calibration import CalibrationKey, TemperatureCalibrator
-from .laya_adapter import LayaAdapter
 from .question_registry import TypedQuestion
+
+
+class TypedInferenceAdapter(Protocol):
+    model_id: str
+    revision: str
+    provider: str
+
+    def predict(
+        self, state: CompiledState, questions: tuple[TypedQuestion, ...],
+        *, deadline: float | None = None,
+    ) -> Mapping[str, tuple[float, ...]]: ...
+
+    def rank_actions(
+        self, state: CompiledState, candidate_ids: tuple[str, ...],
+        *, deadline: float | None = None,
+    ) -> tuple[float, ...]: ...
 
 
 def option_count_bucket(option_count: int) -> str:
@@ -32,25 +50,34 @@ class FastPathDecision:
     reasons: tuple[str, ...]
     model_id: str
     model_revision: str
+    candidate_probabilities: tuple[float, ...] = ()
 
 
-class LayaFastPath:
+class CalibratedFastPath:
     def __init__(
         self,
         *,
-        adapter: LayaAdapter,
+        adapter: TypedInferenceAdapter,
         calibrator: TemperatureCalibrator,
         minimum_top_probability: float = 0.65,
         minimum_margin: float = 0.10,
+        maximum_decision_seconds: float = 0.5,
     ) -> None:
         if not 0.0 <= minimum_top_probability <= 1.0:
             raise ValueError("minimum_top_probability must be between 0 and 1")
         if not 0.0 <= minimum_margin <= 1.0:
             raise ValueError("minimum_margin must be between 0 and 1")
+        if not math.isfinite(maximum_decision_seconds) or maximum_decision_seconds <= 0:
+            raise ValueError("maximum_decision_seconds must be positive and finite")
         self._adapter = adapter
         self._calibrator = calibrator
         self._minimum_top_probability = minimum_top_probability
         self._minimum_margin = minimum_margin
+        self._maximum_decision_seconds = maximum_decision_seconds
+
+    @property
+    def provider(self) -> str:
+        return self._adapter.provider
 
     def decide(
         self,
@@ -59,8 +86,15 @@ class LayaFastPath:
         *,
         action_family: str,
         language: str = "en",
+        candidate_options: tuple[str, ...] = (),
     ) -> FastPathDecision:
-        logits_by_question = self._adapter.predict(state, questions)
+        deadline = time.monotonic() + self._maximum_decision_seconds
+        candidate_probabilities: tuple[float, ...] = ()
+        if candidate_options:
+            candidate_probabilities = self._adapter.rank_actions(
+                state, candidate_options, deadline=deadline
+            )
+        logits_by_question = self._adapter.predict(state, questions, deadline=deadline)
         consequence = str(state.risk.get("consequence", "default"))
         answers: dict[str, str] = {}
         probabilities: dict[str, tuple[float, ...]] = {}
@@ -104,4 +138,10 @@ class LayaFastPath:
             reasons=tuple(reasons),
             model_id=self._adapter.model_id,
             model_revision=self._adapter.revision,
+            candidate_probabilities=candidate_probabilities,
         )
+
+
+# Preserve the public Laya integration while allowing the same guarded path to
+# serve CLM and other explicitly configured System-One engines.
+LayaFastPath = CalibratedFastPath

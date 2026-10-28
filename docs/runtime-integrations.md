@@ -12,16 +12,19 @@ C3R is disabled.
 
 ## Deliberative providers
 
-The release default is DeepSeek V4.1 Flash. Canonical identifiers are:
+The stateless production target is self-hosted DeepSeek V4.1 Flash alongside
+Qwen3-8B/CLM on the existing eight-H100 node. Canonical identifiers are:
 
 - Hugging Face checkpoint: `deepseek-ai/DeepSeek-V4.1-Flash`
-- OpenRouter: `deepseek/deepseek-v4.1-flash`
-- DeepSeek API: `deepseek-flash`
+- Local OpenAI-compatible endpoint: `http://127.0.0.1:8000/v1`, alias `/model`
 
 This is a provider default, not execution authority. The official checkpoint has passed a
 private 8×H100 GCP localhost inference smoke test and has a verified private GCS backup;
 neither result qualifies a public C3R endpoint. `c3r.deliberative.default_provider_config`
-constructs hosted profiles without embedding credentials.
+constructs this local profile by default. Explicit remote profiles remain
+legacy compatibility contracts only, not production routing or fallback.
+See [`deploy/deepseek-v41`](../deploy/deepseek-v41/README.md) for the pinned
+qualification target, startup correction, and recovery/candidate distinction.
 
 `c3r.adapters.providers.ProviderAdapter` supports four protocol shapes:
 
@@ -37,7 +40,7 @@ invalid JSON, oversize content, or non-success HTTP status fail closed. `Provide
 converts transport, outage, timeout, and malformed-response failures into the deterministic action
 selected by host policy. API keys are supplied by the host and are absent from results and telemetry.
 
-These are protocol-level contracts. Single credentialed, fixed-prompt OpenRouter probes for
+These are protocol-level contracts. Historical credentialed, fixed-prompt remote probes for
 DeepSeek, Qwen3.8 Flash, and Claude Sonnet 4.6 capture limited latency and usage evidence.
 A provider becomes release-qualified only after multi-case tests capture model revision,
 region, latency, usage, failure, and fallback evidence in the integrated C3R path.

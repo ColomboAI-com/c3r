@@ -1,0 +1,7 @@
+FROM vllm/vllm-openai@sha256:00d577a6a63281e15336029d5bcee4e9a2cf182214a4f20ba6111b1c8e79893d
+ADD clm-source-bb42c6c.tar /opt/clm/
+COPY clm-source-revision /opt/clm/source-revision
+RUN python3 -m pip install --no-deps --no-build-isolation /opt/clm
+COPY clm_runtime.py /opt/c3r/clm_runtime.py
+COPY encoder_identity.py /opt/c3r/encoder_identity.py
+ENTRYPOINT ["python3", "/opt/c3r/clm_runtime.py"]

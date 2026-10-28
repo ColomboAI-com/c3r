@@ -14,7 +14,6 @@ from threading import BoundedSemaphore
 
 from .http_service import MAX_REQUEST_BYTES, TokenBucket
 
-
 MAX_RESPONSE_BYTES = 65_536
 
 
@@ -76,7 +75,16 @@ class _IngressHandler(BaseHTTPRequestHandler):
 
     def _authorized(self) -> bool:
         supplied = self.headers.get_all("X-C3R-Token", [])
-        return len(supplied) == 1 and hmac.compare_digest(self.server.client_token, supplied[0])
+        authorization = self.headers.get_all("Authorization", [])
+        if len(authorization) > 1 or len(supplied) > 1:
+            return False
+        # Preserve IAM staging's separate client header. Without that header,
+        # SDK clients use standard Bearer auth; it is never relayed upstream.
+        if supplied:
+            return hmac.compare_digest(self.server.client_token.encode(), supplied[0].encode())
+        return (len(authorization) == 1 and
+                hmac.compare_digest(("Bearer " + self.server.client_token).encode(),
+                                    authorization[0].encode()))
 
     def _forward(self, method: str, body: bytes | None = None) -> None:
         if not self.server.in_flight.acquire(blocking=False):
@@ -114,16 +122,19 @@ class _IngressHandler(BaseHTTPRequestHandler):
         self.wfile.write(forwarded)
 
     def do_GET(self) -> None:
-        if self.path not in {"/health", "/metrics"}:
+        if self.path not in {"/health", "/metrics", "/ready", "/v1/models"}:
             self._send_error(404, "not_found")
             return
-        if self.path == "/metrics" and not self._authorized():
+        if self.path != "/health" and not self._authorized():
             self._send_error(401, "unauthorized")
             return
         self._forward("GET")
 
     def do_POST(self) -> None:
-        if self.path != "/v1/decisions":
+        if self.path not in {
+            "/v1/decisions", "/v1/c3r/decide", "/v1/c3r/rank",
+            "/v1/system-one", "/v1/c3r/execute", "/v1/responses",
+        }:
             self._send_error(404, "not_found")
             return
         if not self._authorized():

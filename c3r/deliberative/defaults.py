@@ -1,6 +1,6 @@
 """Auditable defaults for C3R's deliberative language-model path.
 
-The Laya System-One decision model remains separate from this language-model
+The CLM System-One decision model remains separate from this language-model
 default. Defaults select a provider profile; they never bypass candidate,
 verification, budget, or commit controls.
 """
@@ -26,9 +26,15 @@ class DefaultModelProfile:
 
 
 def default_provider_config(
-    *, api_key: str, gateway: Literal["openrouter", "deepseek"] = "openrouter"
+    *, api_key: str | None = None,
+    gateway: Literal["self_hosted", "openrouter", "deepseek"] = "self_hosted"
 ) -> ProviderConfig:
-    """Return the explicit hosted default; credentials are caller-owned."""
+    """Default to local DeepSeek. Explicit remote profiles are legacy compatibility only."""
+    if gateway == "self_hosted":
+        return ProviderConfig("deepseek-local", ProviderKind.OPENAI_COMPATIBLE,
+                              "http://127.0.0.1:8000/v1", "/model", None)
+    if gateway not in {"openrouter", "deepseek"}:
+        raise ValueError("unknown gateway")
     if not api_key:
         raise ValueError("api_key is required")
     if gateway == "deepseek":

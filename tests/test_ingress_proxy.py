@@ -84,8 +84,16 @@ class IngressProxyTests(unittest.TestCase):
         self.assertNotIn("X-C3R-Token", headers)
         self.assertEqual(json.loads(forwarded), {"goal": "inspect"})
 
+    def test_sdk_bearer_authentication_without_cloud_run_header(self):
+        request = Request(self.base + "/v1/models", headers={
+            "Authorization": "Bearer " + CLIENT_TOKEN})
+        with urlopen(request, timeout=2) as response:
+            self.assertEqual(response.status, 200)
+        self.assertEqual(self.upstream.seen[-1][1]["Authorization"],
+                         "Bearer " + UPSTREAM_TOKEN)
+
     def test_missing_or_wrong_client_token_never_reaches_upstream(self):
-        for token in (None, "wrong"):
+        for token in (None, "wrong", "invalid-café"):
             status, body = self.request("/v1/decisions", method="POST", token=token,
                                         payload={"goal": "inspect"})
             self.assertEqual((status, body["error"]), (401, "unauthorized"))
@@ -94,6 +102,15 @@ class IngressProxyTests(unittest.TestCase):
     def test_health_is_unprivileged_but_metrics_require_token(self):
         self.assertEqual(self.request("/health", token=None)[0], 200)
         self.assertEqual(self.request("/metrics", token=None)[0], 401)
+        self.assertEqual(self.request("/ready", token=None)[0], 401)
+        self.assertEqual(self.request("/v1/models", token=None)[0], 401)
+
+    def test_stateless_paths_forward_without_client_credential_leak(self):
+        for path in ("/v1/c3r/decide", "/v1/c3r/rank", "/v1/system-one"):
+            self.assertEqual(self.request(path, method="POST", payload={"goal": "inspect"})[0], 200)
+            seen_path, headers, _ = self.upstream.seen[-1]
+            self.assertEqual(seen_path, path)
+            self.assertNotIn("X-C3R-Token", headers)
 
     def test_rejects_unknown_path_without_contacting_upstream(self):
         self.assertEqual(self.request("/admin")[0], 404)
