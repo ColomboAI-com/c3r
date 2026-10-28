@@ -1,5 +1,14 @@
 # Standalone C3R production launch gate
 
+> **Scope:** This document tracks the research collection, empirical release and
+> broader directive-integration program. For the separate stateless,
+> recommendation-only API launch, use [Core API production gates](stateless-core-api.md#production-gates)
+> and the [scope-specific release policy](release-policy.md). Training, empirical
+> DecisionMix publication and research-collection approval are not prerequisites
+> for that no-collection API. Host and image security, rollback, live runtime,
+> TLS/key isolation, operational controls and consumer acceptance still require
+> their own evidence. This scope distinction is not production approval.
+
 MC-1 product integration is explicitly out of scope for the **standalone** launch. It
 remains in Execution Directive v2 and must not be marked complete there. This document
 distinguishes tested code, private operational evidence, and public release evidence.

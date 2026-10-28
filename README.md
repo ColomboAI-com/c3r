@@ -169,8 +169,10 @@ is `STOP`.
   every Definition of Done item in Execution Directive v2.
 - [`docs/empirical-release-plan.md`](docs/empirical-release-plan.md) — gated path from synthetic
   preview to trained, calibrated, independently reproducible release.
-- [`docs/standalone-launch.md`](docs/standalone-launch.md) — current production exit gates,
-  evidence status, and operator inputs, with MC-1 excluded from standalone scope only.
+- [`docs/stateless-core-api.md`](docs/stateless-core-api.md#production-gates) — production
+  gates for the separate no-collection recommendation API; see its [release policy](docs/release-policy.md).
+- [`docs/standalone-launch.md`](docs/standalone-launch.md) — broader research/directive
+  evidence gates and operator inputs; these do not make training a prerequisite for the stateless API.
 - [`docs/launch-announcement.md`](docs/launch-announcement.md) — canonical launch copy plus
   LinkedIn, X, and Hacker News variants with a publication checklist.
 - [`docs/prior-art.md`](docs/prior-art.md) — explicit attribution links and the canonical novelty
