@@ -8,7 +8,6 @@ from urllib.request import Request, urlopen
 
 from c3r.ingress_proxy import C3RIngressServer
 
-
 CLIENT_TOKEN = "client-token-that-is-long-enough-for-tests"
 UPSTREAM_TOKEN = "upstream-token-that-is-long-enough-for-tests"
 
@@ -92,6 +91,17 @@ class IngressProxyTests(unittest.TestCase):
         self.assertEqual(self.upstream.seen[-1][1]["Authorization"],
                          "Bearer " + UPSTREAM_TOKEN)
 
+    def test_caller_tenant_and_project_headers_are_rejected(self):
+        for name in ("X-Tenant-ID", "X-Project-ID", "OpenAI-Organization", "OpenAI-Project",
+                     "X-C3R-Organization", "X-C3R-Project"):
+            with self.subTest(header=name):
+                request = Request(self.base + "/v1/models", headers={
+                    "Authorization": "Bearer " + CLIENT_TOKEN, name: "forged-context"})
+                with self.assertRaises(HTTPError) as raised:
+                    urlopen(request, timeout=2)
+                self.assertEqual(raised.exception.code, 401)
+        self.assertEqual(self.upstream.seen, [])
+
     def test_missing_or_wrong_client_token_never_reaches_upstream(self):
         for token in (None, "wrong", "invalid-café"):
             status, body = self.request("/v1/decisions", method="POST", token=token,
@@ -142,8 +152,7 @@ class IngressProxyTests(unittest.TestCase):
             with socket.create_connection(("127.0.0.1", self.ingress.server_port), timeout=2) as sock:
                 sock.sendall(packet)
                 response = sock.recv(4096)
-            self.assertTrue(response.startswith(b"HTTP/1.0 400 ") or
-                            response.startswith(b"HTTP/1.0 413 "))
+            self.assertTrue(response.startswith((b"HTTP/1.0 400 ", b"HTTP/1.0 413 ")))
         self.assertEqual(self.upstream.seen, [])
 
     def test_upstream_failure_is_not_mistaken_for_success(self):

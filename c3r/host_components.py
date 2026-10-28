@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 
 from .http_service import RequestFactory
+from .internal_readiness import ReadinessProbe
 from .responses import ResponsesService
 from .runtime import StandaloneController
 from .system_one.inference import SystemOneInference
@@ -13,3 +14,4 @@ class HostComponents:
     factory: RequestFactory
     system_one: SystemOneInference
     responses: ResponsesService
+    internal_readiness: ReadinessProbe | None = None

@@ -113,6 +113,13 @@ class StatelessAPITests(unittest.TestCase):
                 self.assertEqual(body["candidate_ranking"], [])
                 self.assertTrue(body["abstained"])
 
+    def test_decide_exposes_a_non_reasoning_cvoc_summary(self):
+        status, body = self.call("/v1/c3r/decide", payload={"goal": "Find record"})
+        self.assertEqual(status, 200)
+        self.assertAlmostEqual(body["cvoc"]["selected_lower_bound"], 0.604)
+        self.assertEqual(body["cvoc"]["basis"], "host_supplied_estimates")
+        self.assertFalse(body["effect_executed"])
+
     def test_execute_and_untyped_responses_are_unavailable(self):
         for path in ("/v1/c3r/execute", "/v1/responses"):
             status, body = self.call(path, payload={"goal": "Find record"})

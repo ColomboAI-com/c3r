@@ -37,6 +37,22 @@ steps:
     waitFor: [exact-source]
     entrypoint: python
     args: [-m, unittest, discover, -s, tests, -v]
+  # Both SDKs execute in one disposable CPU-only test container. No GPU VM
+  # packages or services are changed by these test-environment installs.
+  - name: node:24-alpine
+    id: official-sdk-acceptance
+    dir: source
+    waitFor: [exact-source]
+    entrypoint: sh
+    args:
+      - -c
+      - >-
+        apk add --no-cache python3 py3-pip
+        && python3 -m venv /workspace/sdk-python
+        && /workspace/sdk-python/bin/python -m pip install 'openai==3.24.0'
+        && npm install --prefix /workspace/sdk-js 'openai@7.27.0' --ignore-scripts --no-audit --no-fund
+        && /workspace/sdk-python/bin/python -m unittest tests.test_official_sdk_acceptance -v
+    env: ['C3R_JS_SDK_MODULE=/workspace/sdk-js/node_modules/openai/index.mjs']
   - name: gcr.io/cloud-builders/git
     id: clm-source
     dir: source
@@ -52,7 +68,7 @@ steps:
   - name: gcr.io/cloud-builders/docker
     id: api-image
     dir: source
-    waitFor: [unit-311, unit-312, unit-313]
+    waitFor: [unit-311, unit-312, unit-313, official-sdk-acceptance]
     args: [build, --pull, --file, Dockerfile, --tag, 'c3r-api:qualification', .]
   - name: gcr.io/cloud-builders/docker
     id: clm-image

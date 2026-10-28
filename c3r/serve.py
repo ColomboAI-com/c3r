@@ -8,14 +8,18 @@ from __future__ import annotations
 
 import importlib
 import os
+import secrets
 import signal
 import threading
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Protocol, cast
 
+from .api_access import AccessStore
 from .host_components import HostComponents
 from .http_service import C3RHTTPServer, RequestFactory
 from .ingress_proxy import C3RIngressServer
+from .internal_readiness import InternalReadinessServer
 from .runtime import StandaloneController
 
 
@@ -60,7 +64,10 @@ def build_servers(
 ) -> tuple[C3RHTTPServer, C3RIngressServer]:
     """Validate configuration before binding a public interface."""
     reference = _required(values, "C3R_HOST_ENTRYPOINT")
-    client_token = _required(values, "C3R_CLIENT_TOKEN")
+    client_token = values.get("C3R_CLIENT_TOKEN", "")
+    configured_mode = values.get("C3R_MODE", "staging")
+    if values.get("C3R_API_AUTH_MODE", "keys" if configured_mode == "production_inference" else "static_staging") == "static_staging":
+        client_token = _required(values, "C3R_CLIENT_TOKEN")
     backend_token = _required(values, "C3R_BACKEND_TOKEN")
     port = _port(values, "PORT", 8080)
     backend_port = _port(values, "C3R_BACKEND_PORT", 8081)
@@ -90,6 +97,15 @@ def build_servers(
             raise ValueError("production inference requires decisions enabled")
         if not runtime.system_one_enabled:
             raise ValueError("production inference requires an enabled System-One path")
+    auth_mode = values.get("C3R_API_AUTH_MODE", "keys" if mode == "production_inference" else "static_staging")
+    if auth_mode not in {"keys", "static_staging"} or (mode == "production_inference" and auth_mode != "keys"):
+        raise ValueError("production inference requires API key authentication")
+    access_store = (AccessStore(Path(_required(values, "C3R_API_ACCESS_DB")))
+                    if auth_mode == "keys" else None)
+    if access_store is None:
+        client_token = _required(values, "C3R_CLIENT_TOKEN")
+    elif not client_token:
+        client_token = secrets.token_urlsafe(32)  # Unused by key mode; never an accepted client credential.
     backend = C3RHTTPServer(
         runtime=runtime,
         request_factory=factory,
@@ -97,6 +113,7 @@ def build_servers(
         port=backend_port,
         system_one=components.system_one if isinstance(components, HostComponents) else None,
         responses=components.responses if isinstance(components, HostComponents) else None,
+        internal_readiness=components.internal_readiness if isinstance(components, HostComponents) else None,
     )
     try:
         ingress = C3RIngressServer(
@@ -106,6 +123,7 @@ def build_servers(
             port=port,
             host=ingress_host,
             upstream_timeout_seconds=65 if mode == "production_inference" else 5,
+            access_store=access_store,
         )
     except BaseException:
         backend.server_close()
@@ -113,36 +131,82 @@ def build_servers(
     return backend, ingress
 
 
+def build_internal_server(values: Mapping[str, str],
+                          backend: C3RHTTPServer, *,
+                          api_workers: tuple[threading.Thread, ...] = (),
+                          stopping: threading.Event | None = None) -> InternalReadinessServer | None:
+    """Opt-in separate maintenance binding; never forwarded by the public gateway."""
+    enabled = "C3R_INTERNAL_READY_PORT" in values or "C3R_INTERNAL_READY_TOKEN" in values
+    if not enabled:
+        return None
+    token = _required(values, "C3R_INTERNAL_READY_TOKEN")
+    _required(values, "C3R_INTERNAL_READY_PORT")
+    port = _port(values, "C3R_INTERNAL_READY_PORT", 8091)
+    if (port in {backend.server_port, _port(values, "PORT", 8080)}
+            or token in {values.get("C3R_CLIENT_TOKEN", ""),
+                         _required(values, "C3R_BACKEND_TOKEN")}):
+        raise ValueError("internal readiness must use a separate port and token")
+    return InternalReadinessServer(token=token, port=port, probe=backend.internal_readiness,
+                                   api_workers=api_workers, stopping=stopping)
+
+
 def main() -> None:
     backend, ingress = build_servers(os.environ)
     stop = threading.Event()
+    backend_thread = threading.Thread(target=backend.serve_forever, daemon=True)
+    ingress_thread = threading.Thread(target=ingress.serve_forever, daemon=True)
+    try:
+        internal = build_internal_server(os.environ, backend,
+                                         api_workers=(backend_thread, ingress_thread), stopping=stop)
+    except BaseException:
+        ingress.server_close()
+        backend.server_close()
+        raise
 
     def request_stop(_signum: int, _frame: object) -> None:
         stop.set()
 
     signal.signal(signal.SIGTERM, request_stop)
     signal.signal(signal.SIGINT, request_stop)
-    backend_thread = threading.Thread(target=backend.serve_forever, daemon=True)
-    ingress_thread = threading.Thread(target=ingress.serve_forever, daemon=True)
     backend_started = False
     ingress_started = False
+    internal_thread = (threading.Thread(target=internal.serve_forever, daemon=True)
+                       if internal is not None else None)
+    internal_started = False
+    worker_failure = False
     try:
         backend_thread.start()
         backend_started = True
         ingress_thread.start()
         ingress_started = True
-        stop.wait()
+        if internal_thread is not None:
+            internal_thread.start()
+            internal_started = True
+        while not stop.wait(0.25):
+            if (not backend_thread.is_alive() or not ingress_thread.is_alive()
+                    or (internal_thread is not None and not internal_thread.is_alive())):
+                worker_failure = True
+                stop.set()
     finally:
-        if ingress_started:
+        stop.set()
+        if internal_started and internal is not None and internal_thread is not None and internal_thread.is_alive():
+            internal.shutdown()
+        if ingress_started and ingress_thread.is_alive():
             ingress.shutdown()
-        if backend_started:
+        if backend_started and backend_thread.is_alive():
             backend.shutdown()
         ingress.server_close()
         backend.server_close()
+        if internal is not None:
+            internal.server_close()
+        if internal_started and internal_thread is not None:
+            internal_thread.join(timeout=5)
         if ingress_started:
             ingress_thread.join(timeout=5)
         if backend_started:
             backend_thread.join(timeout=5)
+    if worker_failure:
+        raise RuntimeError("C3R serving worker exited unexpectedly")
 
 
 if __name__ == "__main__":

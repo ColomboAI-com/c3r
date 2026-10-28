@@ -1,5 +1,30 @@
 # C3R Core API v1: stateless inference contract
 
+## Optional internal maintenance readiness channel
+
+The new channel is code-only until separately deployed and qualified. Configure
+`C3R_INTERNAL_READY_PORT` and a distinct `C3R_INTERNAL_READY_TOKEN` to start an
+additional listener in the same Core process, bound only to `127.0.0.1`.
+`GET /internal/ready` requires its own Bearer token; the public ingress does not
+forward this route. It uses fresh CLM/Qwen and DeepSeek probes, not cached public
+readiness. Authentication or any missing/failed check keeps recovery unqualified.
+The runtime check also requires both actual backend and ingress serving workers
+to be alive before and after provider probing, and no shutdown request pending.
+This is a worker-liveness prerequisite, not proof that every API request works;
+the deployment acceptance and recovery drills remain separate requirements.
+
+The production host also requires `C3R_INTERNAL_ARTIFACT_MANIFEST` and its
+independently supplied `C3R_INTERNAL_ARTIFACT_MANIFEST_SHA256`. The pinned JSON
+schema is `{"schema":"c3r-required-local-files-v1","files":[{"path":"/absolute/file",
+"sha256":"<64 lowercase hex characters>","max_bytes":123}]}`. The nonempty list
+allows at most 32 non-linked regular files and at most 64 MiB combined declared
+byte limits; the manifest itself is limited to 64 KiB. Files are hashed freshly.
+The response binds the manifest SHA and explicitly scopes verification to these
+local files. Hashing a weight receipt proves only that receipt, **not DeepSeek
+weights**. The deployment operator must independently approve the required-file
+inventory, bind actual model mounts/images, and verify listener ownership and
+root-controlled credential delivery before maintenance can rely on it.
+
 This is a **separate release scope** from governed research collection. It may
 serve read-only, verified recommendations using the upstream CLM ranker without
 C3R-trained weights or an empirical DecisionMix release. It does **not** confer
@@ -39,7 +64,18 @@ those fields.
 | `POST /v1/c3r/rank` | Direct, read-only ranking of arbitrary candidate strings. No action catalog is required and nothing is executed. |
 | `POST /v1/system-one` | Typed `choice`, `boolean`/`noul`, and ordered `score` questions, or direct candidate ranking. Relative scores are not task-success probabilities or authority. |
 | `POST /v1/c3r/execute` | Returns 501. External effects are unsupported. |
-| `POST /v1/responses` | Text-only Responses subset for `c3r-core`: string `input`, bounded `max_output_tokens`, `store: false`, `stream: false`. Generation uses local DeepSeek, not CLM. Tools, storage, streaming and other fields are rejected. |
+| `POST /v1/responses` | Text-only Responses subset for `c3r-core`: string `input`, bounded `max_output_tokens`, `store: false`, and optional `stream: true` for bounded SSE. Generation uses local DeepSeek, not CLM. Tools, storage and unsupported fields are rejected. |
+
+Responses SSE emits `response.created`, output-text events and a terminal
+completion or error. Closing the stream cancels the upstream connection and
+releases admission slots. This is an implemented contract, not evidence of
+live-provider load or cancellation qualification; see [developer API](developer-api.md).
+
+Tenant and project identity are derived only from the scoped API key. Caller
+override headers (`X-Tenant-ID`, `X-Project-ID`, `OpenAI-Organization`,
+`OpenAI-Project`, `X-C3R-Organization`, `X-C3R-Project`) are rejected with 401.
+Do not configure SDK organization/project overrides; select the project through
+its scoped key.
 
 `POST /v1/decisions` remains the compatibility route. Example:
 

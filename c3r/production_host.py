@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Mapping
+from pathlib import Path
 from secrets import token_bytes
 from typing import cast
 from urllib.request import ProxyHandler, build_opener
@@ -18,6 +19,7 @@ from .cvoc import RobustCvocController
 from .feature_flags import FeatureFlags
 from .host_components import HostComponents
 from .http_transport import NoRedirectHandler
+from .local_artifacts import PinnedLocalArtifacts
 from .readiness import CachedReadiness
 from .responses import ResponsesService
 from .runtime import StandaloneController
@@ -101,6 +103,10 @@ class ProviderReadiness:
     def all(self) -> bool:
         return self.system_one() and self.deliberative()
 
+    def fresh_maintenance_checks(self) -> dict[str, object]:
+        """Recovery must not accept health cached before shutdown or replacement."""
+        return {"clm_qwen": self._system_one(), "deepseek": self._deliberative()}
+
 
 def build() -> HostComponents:
     flags = FeatureFlags.from_mapping(os.environ)
@@ -132,5 +138,24 @@ def build() -> HostComponents:
         "deepseek-local", ProviderKind.OPENAI_COMPATIBLE,
         "http://127.0.0.1:8000/v1", "/model", None, timeout_seconds=60,
     ))
+    manifest = os.environ.get("C3R_INTERNAL_ARTIFACT_MANIFEST", "")
+    manifest_pin = os.environ.get("C3R_INTERNAL_ARTIFACT_MANIFEST_SHA256", "")
+    if bool(manifest) != bool(manifest_pin):
+        raise ValueError("internal required-file manifest and independent SHA pin must be paired")
+    artifacts = PinnedLocalArtifacts(Path(manifest), manifest_pin) if manifest else None
+
+    def internal_readiness() -> Mapping[str, object]:
+        report: dict[str, object] = {
+            "runtime": runtime.decision_enabled and runtime.system_one_enabled
+                       and not runtime.trace_persistence_enabled,
+            "required_local_artifact_files": artifacts is not None and artifacts.verify(),
+            "required_local_artifact_manifest_sha256": manifest_pin or None,
+        }
+        # Missing/invalid artifact authority cannot produce a recovery-ready result.
+        # No small-file check is presented as a DeepSeek weight hash attestation.
+        if report["required_local_artifact_files"] is True:
+            report.update(readiness.fresh_maintenance_checks())
+        return report
+
     return HostComponents(runtime, registry, SystemOneInference(adapter, readiness=readiness.system_one),
-                          ResponsesService(runtime, registry, provider))
+                          ResponsesService(runtime, registry, provider), internal_readiness)
