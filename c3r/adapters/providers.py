@@ -17,6 +17,7 @@ from urllib.request import ProxyHandler, Request, build_opener
 from ..deliberative.envelope import DeliberativeResult
 from ..http_transport import NoRedirectHandler
 from ..state_schema import ActionFamily
+from ..system_prompt import C3R_SYSTEM_PROMPT, RUNTIME_BOUNDARY, TEXT_SYSTEM_PROMPT
 from ..telemetry.invocations import transport_attempt
 
 MAX_RESPONSE_BYTES = 65_536
@@ -92,7 +93,7 @@ class ControlledDeliberation:
 
 Transport = Callable[[str, dict[str, str], dict[str, object]], TransportResponse]
 
-_SYSTEM = (
+_SYSTEM = C3R_SYSTEM_PROMPT + "\n\n" + RUNTIME_BOUNDARY + "\n" + (
     "Return only one JSON object with string-array fields plan, assumptions, uncertainty, "
     "candidate_commitments, and requested_actions. Propose computation; never claim commit authority."
 )
@@ -386,8 +387,7 @@ class ProviderAdapter:
         payload: dict[str, object] = {
             "model": self.config.model, "max_tokens": max_output_tokens, "temperature": 0,
             "messages": [
-                {"role": "system", "content": "Provide a helpful final answer only. Do not expose "
-                 "private reasoning or claim to execute tools, commit actions, or grant authority."},
+                {"role": "system", "content": TEXT_SYSTEM_PROMPT},
                 {"role": "user", "content": text},
             ],
         }
@@ -444,8 +444,7 @@ class ProviderAdapter:
             "model": self.config.model, "max_tokens": max_output_tokens, "temperature": 0,
             "stream": True, "stream_options": {"include_usage": True},
             "messages": [
-                {"role": "system", "content": "Provide a helpful final answer only. Do not expose "
-                 "private reasoning or claim to execute tools, commit actions, or grant authority."},
+                {"role": "system", "content": TEXT_SYSTEM_PROMPT},
                 {"role": "user", "content": text},
             ],
         }
