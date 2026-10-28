@@ -2,6 +2,8 @@
 # local evidence, secrets, or repository metadata to Cloud Build.
 **
 !Dockerfile
+!Dockerfile.retention
+!cloudbuild.retention.yaml
 !.dockerignore
 !c3r/
 !c3r/**
