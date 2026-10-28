@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from math import isfinite
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
@@ -85,7 +86,8 @@ _SYSTEM = (
 def _number(value: object) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return 0.0
-    return float(value)
+    number = float(value)
+    return number if isfinite(number) and number >= 0 else 0.0
 
 
 def _string_tuple(value: object) -> tuple[str, ...]:

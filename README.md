@@ -20,6 +20,13 @@ fast path with calibration-gated abstention, and a reproducible DecisionMix v1 s
 It is a research alpha: the controller is runnable and tested; fine-tuned weights and empirical
 production calibration remain release gates, not implied claims.
 
+> **Launch status:** The standalone decision service and governed trace collection
+> are not enabled for public use. The independent [PR #2 review](https://github.com/ColomboAI-com/c3r/pull/2#pullrequestreview-5293835066)
+> requests changes. A real cloud storage audit probe and the first natural
+> empty-bucket purge run are recorded for reviewer inspection, but they do not
+> establish deletion of aged traces or backups, trained weights, calibration,
+> safety results, or canary evidence. See the [reviewer packet](docs/reviewer-staging-packet-2026-09-23.md).
+
 ### Default language model
 
 C3R's default **deliberative** language model is
@@ -29,10 +36,10 @@ official DeepSeek API alias is `deepseek-flash`. Laya remains the separate Syste
 decision fast path, and DeepSeek recommendations remain subject to the same verifier and
 trusted commit boundary as every other candidate.
 
-The 763B-parameter checkpoint is not assumed to fit a single GPU merely because only
-8B/16B parameters are active per token. A GCP deployment must pass storage, aggregate
-accelerator memory, runtime-version, and smoke-test gates before C3R labels it self-hosted;
-otherwise the GPU service uses the hosted provider profile and stores no model weights.
+The official checkpoint has passed a private 8×H100 GCP serving smoke test and is backed
+up in a private GCS bucket. Its vLLM endpoint is bound to localhost; this is **not** a
+public C3R service or end-to-end production qualification. The checkpoint's active
+parameter count does not imply it fits on one GPU.
 
 ## Why C3R
 
@@ -63,8 +70,9 @@ failed verification into success, or directly commit an external effect.
 | Laya fast path | exact upstream revision and license verification, typed probabilities, slice calibration, confidence/margin abstention |
 | DecisionMix v1 | validated records, immutable deterministic splits, source/license provenance, SHA-256 manifest, 144-record synthetic preview |
 | Authority boundary | action-bound verifier attestations, expiring single-use approvals, atomic nonce claims |
-| Runtime control | conservative CVoC selection, deterministic `STOP`, cost twin, deliberative contracts, evidence-grade traces |
+| Runtime control | conservative CVoC selection, deterministic `STOP`, cost twin, deliberative contracts, trace schema and optional transactional SQLite hash chain |
 | Operational controls | fail-closed feature flags, tested frontier/open-weight HTTP contracts, Colibri shadow recommendations, canonical trace hash chain |
+| Standalone controller boundary | tested state → candidates → optional Laya → CVoC → independent verifier → recommendation/commit fallback → redacted trace composition; host-owned read-only request factory, data-boundary-aware provider bridge, and authenticated rate-limited loopback HTTP boundary. A separate private Cloud Run staging host is deliberately fixed-disabled; it is not the decision service or a public launch. |
 
 This compiler is the reviewed vertical slice, not the directive's full Candidate Compiler
 Definition of Done. Rich typed value constraints, per-argument provenance, dominated-branch
@@ -127,6 +135,8 @@ is `STOP`.
   every Definition of Done item in Execution Directive v2.
 - [`docs/empirical-release-plan.md`](docs/empirical-release-plan.md) — gated path from synthetic
   preview to trained, calibrated, independently reproducible release.
+- [`docs/standalone-launch.md`](docs/standalone-launch.md) — current production exit gates,
+  evidence status, and operator inputs, with MC-1 excluded from standalone scope only.
 - [`docs/launch-announcement.md`](docs/launch-announcement.md) — canonical launch copy plus
   LinkedIn, X, and Hacker News variants with a publication checklist.
 - [`docs/prior-art.md`](docs/prior-art.md) — explicit attribution links and the canonical novelty
@@ -151,6 +161,12 @@ is intentionally synthetic. It validates the entire publication contract
 without presenting generated fixtures as real training evidence. The empirical corpus will ship
 only when provenance, licensing, held-out integrity, and calibration support are independently
 auditable.
+
+For the first empirical source, ColomboAI approved only C3R-authored internal
+tasks under the [interim trace policy](docs/internal-task-trace-policy.md). It
+sets a 30-day private retention limit and requires independent review before
+any de-identified row is published. Collection remains off until the technical
+controls are verified; this approval does not make the preview empirical.
 
 Required empirical metrics include accuracy, Brier score, ECE, maximum calibration error, NLL,
 selective risk versus coverage, abstention, escalation, p50/p95 latency, throughput, calls avoided,
@@ -192,3 +208,4 @@ Do not report vulnerabilities in a public issue; follow [`SECURITY.md`](SECURITY
 effects must be completely mediated by an independently configured commit gateway.
 
 Apache License 2.0. See [`LICENSE`](LICENSE). If you use C3R, cite [`CITATION.cff`](CITATION.cff).
+

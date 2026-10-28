@@ -40,6 +40,11 @@ class VerifierFirewall:
         self._policy = policy
         self._attestation_key = attestation_key
 
+    @property
+    def available_verifier_ids(self) -> frozenset[str]:
+        """Identifiers configured by the trusted host, never by a proposal."""
+        return frozenset(self._verifiers)
+
     def verify(self, candidate: ActionCandidate) -> VerificationResult:
         verifier_id = self._policy.select(candidate)
         try:

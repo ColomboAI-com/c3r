@@ -1,0 +1,85 @@
+{
+  "as_of_utc": "2026-09-23T16:16:11Z",
+  "scope": "private staging control, no trace collection",
+  "project": "columboai-frontend",
+  "region": "us-central1",
+  "bucket": "gs://colomboai-c3r-private-traces-795563500003",
+  "bucket_observed": {
+    "uniform_bucket_level_access": true,
+    "public_access_prevention": "enforced",
+    "soft_delete_duration_seconds": 0,
+    "versioning_enabled": false,
+    "lifecycle_delete_age_days": 28,
+    "objects_at_dry_run": 0,
+    "bucket_iam": "projectOwner legacy bucket/object ownership and bucket-scoped custom purger role; inherited project grants not audited"
+  },
+  "purger": {
+    "cloud_run_job": "c3r-retention-purge",
+    "service_account": "c3r-retention-purge@columboai-frontend.iam.gserviceaccount.com",
+    "custom_role": "projects/columboai-frontend/roles/c3rTracePurger",
+    "custom_role_permissions": ["storage.objects.list", "storage.objects.delete"],
+    "image_digest": "sha256:4490e0d00049c8d8ba07350184c5044d4a84e5b4098f0d318e2be05f86a310de",
+    "manual_execution": "c3r-retention-purge-9twch",
+    "manual_execution_result": "completed successfully",
+    "manual_execution_report": {
+      "objects_before": 0,
+      "expired_candidates": 0,
+      "objects_after": 0,
+      "expired_remaining": 0,
+      "trace_collection_enabled": false
+    }
+  },
+  "scheduler": {
+    "job": "c3r-retention-daily",
+    "schedule": "15 0 * * *",
+    "time_zone": "Etc/UTC",
+    "state_at_creation": "ENABLED",
+    "service_account": "c3r-retention-scheduler@columboai-frontend.iam.gserviceaccount.com",
+    "authority": "roles/run.invoker on c3r-retention-purge only",
+    "manual_trigger_requested": true,
+    "manual_trigger_verified": true,
+    "triggered_execution": "c3r-retention-purge-5zw56",
+    "triggered_execution_result": "completed successfully",
+    "triggered_execution_report": {
+      "objects_before": 0,
+      "expired_candidates": 0,
+      "objects_after": 0,
+      "expired_remaining": 0,
+      "trace_collection_enabled": false
+    }
+  },
+  "scoped_delete_probe": {
+    "object": "control-probes/2026-09-23-delete-probe.txt",
+    "payload": "68-byte non-sensitive marker, not a trace",
+    "generation": "1790179707761698",
+    "job_execution": "c3r-retention-delete-probe-20260923-wnjqb",
+    "execution_result": "completed successfully",
+    "method": "GcsJsonClient listed exactly one object, asserted its generation, deleted with ifGenerationMatch, then asserted an empty live listing",
+    "post_run_live_listing": "empty",
+    "post_run_all_versions_listing": "no objects matched",
+    "soft_deleted_listing": "HTTP 400 because bucket soft-delete policy is disabled",
+    "one_off_probe_job_removed": true,
+    "trace_collection_enabled": false
+  },
+  "failure_alert": {
+    "policy": "projects/columboai-frontend/alertPolicies/16956137431162400006",
+    "metric": "run.googleapis.com/job/completed_execution_count",
+    "scope": "c3r-retention-purge failed executions only",
+    "channel": "existing C3R staging work-email channel",
+    "enabled": true,
+    "policy_configuration_verified": true,
+    "failure_delivery_drill_verified": false
+  },
+  "not_verified": [
+    "first natural daily scheduled execution",
+    "age-based deletion of an expired object",
+    "deletion in any independently configured backup or replica",
+    "effective inherited IAM and read/export audit",
+    "retention failure alert delivery on a real failed execution",
+    "independent ledger anchoring",
+    "governed internal-task source and live trace",
+    "independent reviewer sign-off"
+  ],
+  "collection_enabled": false,
+  "production_qualified": false
+}
