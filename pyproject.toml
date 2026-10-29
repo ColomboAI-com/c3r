@@ -21,6 +21,7 @@ classifiers = [
 laya = ["laya==0.3.5", "huggingface_hub>=0.20.0"]
 dev = ["ruff>=0.8", "pyright>=1.1"]
 sdk-acceptance = ["openai==3.24.0"]
+postgres = ["pg8000>=1.30"]
 
 [tool.setuptools.packages.find]
 include = ["c3r*"]

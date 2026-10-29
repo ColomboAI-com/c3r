@@ -115,8 +115,19 @@ def build_servers(
     auth_mode = values.get("C3R_API_AUTH_MODE", "keys" if mode == "production_inference" else "static_staging")
     if auth_mode not in {"keys", "static_staging"} or (mode == "production_inference" and auth_mode != "keys"):
         raise ValueError("production inference requires API key authentication")
-    access_store = (AccessStore(Path(_required(values, "C3R_API_ACCESS_DB")))
-                    if auth_mode == "keys" else None)
+    access_store: AccessStore | None
+    if auth_mode != "keys":
+        access_store = None
+    else:
+        backend = values.get("C3R_API_ACCESS_BACKEND", "sqlite")
+        if backend == "sqlite":
+            access_store = AccessStore(Path(_required(values, "C3R_API_ACCESS_DB")))
+        elif backend == "postgres":
+            # Shared store for horizontally-scaled replicas; same contract as AccessStore.
+            from .pg_access import PostgresAccessStore
+            access_store = cast(AccessStore, PostgresAccessStore(_required(values, "C3R_API_ACCESS_DSN")))
+        else:
+            raise ValueError("C3R_API_ACCESS_BACKEND must be 'sqlite' or 'postgres'")
     if access_store is None:
         client_token = _required(values, "C3R_CLIENT_TOKEN")
     elif not client_token:
