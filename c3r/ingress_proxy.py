@@ -42,6 +42,9 @@ class C3RIngressServer(ThreadingHTTPServer):
         requests_per_minute: int = 60,
         max_in_flight: int = 16,
         max_connections: int = 32,
+        generation_slots: int = 1,
+        ranking_slots: int = 4,
+        decision_slots: int = 2,
         upstream_timeout_seconds: float = 5.0,
         access_store: AccessStore | None = None,
     ) -> None:
@@ -57,6 +60,9 @@ class C3RIngressServer(ThreadingHTTPServer):
             raise ValueError("concurrency and timeout must be positive")
         if type(max_connections) is not int or not 1 <= max_connections <= 4096:
             raise ValueError("bounded accepted connection limit required")
+        if any(type(slots) is not int or not 1 <= slots <= 4096
+               for slots in (generation_slots, ranking_slots, decision_slots)):
+            raise ValueError("per-route concurrency slots must be bounded positive integers")
         self.connection_slots = BoundedSemaphore(max_connections)
         self.upstream_host = upstream_host
         self.upstream_port = upstream_port
@@ -69,10 +75,10 @@ class C3RIngressServer(ThreadingHTTPServer):
             refill_per_second=requests_per_minute / 60,
         )
         self.in_flight = BoundedSemaphore(max_in_flight)
-        self.route_slots = {"/v1/responses": BoundedSemaphore(1),
-                            "/v1/system-one": BoundedSemaphore(4),
-                            "/v1/c3r/rank": BoundedSemaphore(4)}
-        decisions = BoundedSemaphore(2)
+        self.route_slots = {"/v1/responses": BoundedSemaphore(generation_slots),
+                            "/v1/system-one": BoundedSemaphore(ranking_slots),
+                            "/v1/c3r/rank": BoundedSemaphore(ranking_slots)}
+        decisions = BoundedSemaphore(decision_slots)
         for path in ("/v1/decisions", "/v1/c3r/decide", "/v1/c3r/execute"):
             self.route_slots[path] = decisions
         super().__init__((host, port), _IngressHandler)

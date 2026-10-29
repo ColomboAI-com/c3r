@@ -96,10 +96,15 @@ class AccessStore:
     @contextmanager
     def connect(self) -> Generator[sqlite3.Connection]:
         # No shared connection/thread state; busy waits are bounded.
-        connection = sqlite3.connect(self.path.as_uri() + "?mode=rw", uri=True, timeout=2)
+        connection = sqlite3.connect(self.path.as_uri() + "?mode=rw", uri=True, timeout=5)
         try:
             connection.execute("PRAGMA foreign_keys=ON")
             connection.execute("PRAGMA synchronous=FULL")
+            # Wait briefly for a contended write lock instead of failing immediately,
+            # so bursts of concurrent authenticated requests degrade gracefully rather
+            # than surfacing "database is locked". Rollback-journal mode is retained
+            # (no WAL sidecars) to stay compatible with the backup/restore contract.
+            connection.execute("PRAGMA busy_timeout=5000")
             with connection:
                 yield connection
         finally:

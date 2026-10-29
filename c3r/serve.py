@@ -45,6 +45,20 @@ def _port(values: Mapping[str, str], name: str, default: int) -> int:
     return value
 
 
+def _bounded_int(values: Mapping[str, str], name: str, default: int, *, lo: int, hi: int) -> int:
+    """Read an optional positive integer tuning knob; fail closed on invalid input."""
+    raw = values.get(name, "")
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise ValueError(f"{name} must be an integer") from error
+    if not lo <= value <= hi:
+        raise ValueError(f"{name} must be between {lo} and {hi}")
+    return value
+
+
 def load_host_builder(reference: str) -> HostBuilder:
     """Load an explicitly configured, trusted module:function host composition."""
     module_name, separator, attribute = reference.partition(":")
@@ -115,6 +129,7 @@ def build_servers(
         system_one=components.system_one if isinstance(components, HostComponents) else None,
         responses=components.responses if isinstance(components, HostComponents) else None,
         internal_readiness=components.internal_readiness if isinstance(components, HostComponents) else None,
+        max_concurrent_generations=_bounded_int(values, "C3R_MAX_CONCURRENT_GENERATIONS", 4, lo=1, hi=1024),
     )
     try:
         ingress = C3RIngressServer(
@@ -125,6 +140,11 @@ def build_servers(
             host=ingress_host,
             upstream_timeout_seconds=65 if mode == "production_inference" else 5,
             access_store=access_store,
+            max_connections=_bounded_int(values, "C3R_MAX_CONNECTIONS", 32, lo=1, hi=4096),
+            max_in_flight=_bounded_int(values, "C3R_MAX_IN_FLIGHT", 16, lo=1, hi=4096),
+            generation_slots=_bounded_int(values, "C3R_GENERATION_SLOTS", 1, lo=1, hi=4096),
+            ranking_slots=_bounded_int(values, "C3R_RANKING_SLOTS", 4, lo=1, hi=4096),
+            decision_slots=_bounded_int(values, "C3R_DECISION_SLOTS", 2, lo=1, hi=4096),
         )
     except BaseException:
         backend.server_close()
