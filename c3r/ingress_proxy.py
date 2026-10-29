@@ -287,7 +287,12 @@ class _IngressHandler(BaseHTTPRequestHandler):
                 raise ValueError("invalid upstream response")
             self._record_usage(response.status, cast(Mapping[str, object], decoded))
             if response.status >= 400 and self.gateway.access_store is not None:
-                self._send_error(response.status, "upstream_rejected")
+                # Client-validation statuses get an accurate code; only genuine
+                # upstream failures (5xx and others) are labelled upstream_rejected.
+                client_error_codes = {400: "invalid_request", 413: "request_too_large",
+                                      415: "unsupported_media_type", 422: "unprocessable_request"}
+                self._send_error(response.status,
+                                 client_error_codes.get(response.status, "upstream_rejected"))
                 return
         except (OSError, HTTPException, ValueError, sqlite3.Error):
             if disconnected.is_set():
