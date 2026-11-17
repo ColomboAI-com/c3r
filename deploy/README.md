@@ -87,3 +87,23 @@ not shell history or source control.
 A built image and local database tests do not establish production database
 IAM, at-rest encryption, recoverability, network admission or runtime readiness.
 Those remain deployment gates. Keep research collection and online learning off.
+
+## Local packaged-image qualification
+
+With Docker, Bash, Python and OpenSSL available, build the API image and run:
+
+```bash
+bash deploy/qualify_postgres_image.sh --run-local c3r-core:dev
+```
+
+This creates two disposable PostgreSQL fixtures on a network-isolated local
+Docker engine, without host ports. It runs the repository tests inside the
+actual API image, checking trusted TLS, wrong-host/untrusted/plaintext refusal,
+scoped keys, quotas and payload-free metadata. Test authentication is deliberately
+fixture-only, not a production database policy. Only public test files and a
+throwaway public CA certificate are mounted into the API container. The generated
+fixture key and owned containers are removed; cleanup failure fails qualification.
+The test-app run is bounded to 180 seconds. No GCP resource or GPU service is used.
+
+CI runs this qualification before image scans and artifact preservation. A local
+pass is still not approval to deploy or evidence of a live production database.
