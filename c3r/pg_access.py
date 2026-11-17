@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import importlib
 import json
 import math
 import queue
@@ -66,15 +67,20 @@ _SCHEMA = (
 class PostgresAccessStore:
     """Drop-in replacement for ``AccessStore`` backed by a shared Postgres database."""
 
-    def __init__(self, dsn: str, *, clock: Callable[[], float] = time.time, pool_size: int = 8) -> None:
+    def __init__(self, dsn: str, *, clock: Callable[[], float] = time.time, pool_size: int = 8,
+                 pool_timeout_seconds: float = 2.0) -> None:
         if not dsn:
             raise ValueError("Postgres DSN required")
-        if pool_size < 1:
-            raise ValueError("pool size must be positive")
+        if type(pool_size) is not int or not 1 <= pool_size <= 128:
+            raise ValueError("bounded positive pool size required")
+        if (isinstance(pool_timeout_seconds, bool) or not math.isfinite(pool_timeout_seconds)
+                or not 0 < pool_timeout_seconds <= 30):
+            raise ValueError("bounded positive pool timeout required")
         parsed = urlparse(dsn)
         if parsed.scheme not in {"postgres", "postgresql"}:
             raise ValueError("Postgres DSN must use the postgres(ql) scheme")
-        import pg8000.dbapi as driver  # pyright: ignore[reportMissingImports]  # lazy: postgres backend only
+        # Optional untyped DB-API driver; confined to this external boundary.
+        driver: Any = importlib.import_module("pg8000.dbapi")
 
         self._driver: Any = driver
         self.clock = clock
@@ -84,11 +90,14 @@ class PostgresAccessStore:
             "host": parsed.hostname or "127.0.0.1",
             "port": parsed.port or 5432,
             "database": (parsed.path or "/").lstrip("/") or "postgres",
+            "timeout": 2,
         }
         self._pool: queue.Queue[Any] = queue.Queue(maxsize=pool_size)
         self._size = pool_size
         self._lock = threading.Lock()
         self._created = 0
+        self._closed = False
+        self._pool_timeout_seconds = pool_timeout_seconds
         with self._cursor() as cursor:
             for statement in _SCHEMA:
                 cursor.execute(statement)
@@ -97,14 +106,45 @@ class PostgresAccessStore:
         return self._driver.connect(**self._params)
 
     def _acquire(self) -> Any:
-        try:
-            return self._pool.get_nowait()
-        except queue.Empty:
+        deadline = time.monotonic() + self._pool_timeout_seconds
+        while True:
+            with self._lock:
+                if self._closed:
+                    raise OSError("access store unavailable")
+            try:
+                return self._pool.get_nowait()
+            except queue.Empty:
+                pass
+            reserved = False
             with self._lock:
                 if self._created < self._size:
                     self._created += 1
-                    return self._new_connection()
-        return self._pool.get()
+                    reserved = True
+            if reserved:
+                try:
+                    connection = self._new_connection()
+                except BaseException as error:
+                    with self._lock:
+                        self._created -= 1
+                    if not isinstance(error, Exception):
+                        raise
+                    raise OSError("access store unavailable") from None
+                with self._lock:
+                    closed = self._closed
+                if closed:
+                    self._discard(connection)
+                    raise OSError("access store unavailable")
+                return connection
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise OSError("access store unavailable")
+            try:
+                return self._pool.get(timeout=min(remaining, 0.05))
+            except queue.Empty:
+                # A discarded connection can free a reservation without placing
+                # an item in the queue. Recheck capacity, without retrying a
+                # failed connection or replaying a transaction.
+                continue
 
     def _discard(self, connection: Any) -> None:
         with suppress(Exception):
@@ -113,9 +153,24 @@ class PostgresAccessStore:
             self._created -= 1
 
     def _release(self, connection: Any) -> None:
-        try:
-            self._pool.put_nowait(connection)
-        except queue.Full:
+        with self._lock:
+            if not self._closed:
+                try:
+                    self._pool.put_nowait(connection)
+                    return
+                except queue.Full:
+                    pass
+        self._discard(connection)
+
+    def close(self) -> None:
+        """Close idle sockets; in-flight connections are discarded on return."""
+        with self._lock:
+            self._closed = True
+        while True:
+            try:
+                connection = self._pool.get_nowait()
+            except queue.Empty:
+                return
             self._discard(connection)
 
     @contextmanager
@@ -126,6 +181,10 @@ class PostgresAccessStore:
             cursor = connection.cursor()
             yield cursor
             connection.commit()
+        except (self._driver.Error, OSError):
+            self._discard(connection)
+            connection = None
+            raise OSError("access store unavailable") from None
         except BaseException:
             # A failed transaction leaves the connection in an aborted state; drop it
             # rather than returning a poisoned connection to the pool.
@@ -263,7 +322,9 @@ class PostgresAccessStore:
     def admit(self, principal: Principal) -> bool:
         now = int(self.clock())
         with self._cursor() as cursor:
-            cursor.execute("SELECT rpm,key_rps FROM projects WHERE tenant=%s AND id=%s",
+            # Serialize on the existing project row, including the first quota
+            # window where there is no quota row for FOR UPDATE to lock yet.
+            cursor.execute("SELECT rpm,key_rps FROM projects WHERE tenant=%s AND id=%s FOR UPDATE",
                            (principal.tenant_id, principal.project_id))
             limits = cursor.fetchone()
             if limits is None:
