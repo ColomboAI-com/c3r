@@ -13,6 +13,11 @@ case "$endpoint" in
   unix:///var/run/docker.sock|npipe:////./pipe/dockerDesktopLinuxEngine) ;;
   *) echo 'Only the local qualification engine is admitted' >&2; exit 2 ;;
 esac
+# Bind every operation to the endpoint checked above, even if context state changes.
+docker() {
+  env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH \
+    docker --host "$endpoint" "$@"
+}
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd -- "$root"
 api_id="$(docker image inspect --format '{{.Id}}' "$image")"
@@ -56,6 +61,8 @@ cleanup() {
   exit "$original_status"
 }
 trap cleanup EXIT
+stage=certificate
+trap 'echo "POSTGRES_FIXTURE_STAGE_FAILED:$stage" >&2' ERR
 host_path() {
   if [[ "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
     cygpath -aw -- "$1"
@@ -65,16 +72,19 @@ host_path() {
 }
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
   -subj /CN=c3r-owned-postgres-fixture -addext subjectAltName=IP:127.0.0.1 \
-  -keyout "$scratch/server.key" -out "$scratch/server.crt" >/dev/null 2>&1
+  -keyout "$(host_path "$scratch/server.key")" -out "$(host_path "$scratch/server.crt")" >/dev/null
 fixture_mount="type=bind,source=$(host_path "$scratch"),target=/certs,readonly"
 common=(--detach --label "io.c3r.fixture=$run_id" --memory 384m --cpus 1
   --tmpfs /var/lib/postgresql/data:rw,size=256m --tmpfs /tmp:rw,size=16m
   --env POSTGRES_HOST_AUTH_METHOD=trust)
+stage=tls-fixture
 tls_id="$(docker run "${common[@]}" --name "$tls_name" --network none \
   --mount "$fixture_mount" "$pg_image" sh -c \
   'cp /certs/server.key /tmp/server.key && chmod 600 /tmp/server.key && chown postgres:postgres /tmp/server.key && exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/certs/server.crt -c ssl_key_file=/tmp/server.key')"
+stage=plaintext-fixture
 plain_id="$(docker run "${common[@]}" --name "$plain_name" --network "container:$tls_id" \
   "$pg_image" postgres -p 5433 -c ssl=off)"
+stage=fixture-readiness
 for pair in "$tls_id:5432" "$plain_id:5433"; do
   ready=false
   for attempt in {1..50}; do
@@ -95,6 +105,7 @@ for file in scripts/run_controlled_pairs.py scripts/run_trace_control_dry_run.py
   mounts+=(--mount "type=bind,source=$(host_path "$root/$file"),target=/app/$file,readonly")
 done
 ca='sslmode=verify-full&sslrootcert=/fixtures/ca.pem'
+stage=container-test-suite
 timeout --signal=TERM --kill-after=10s 180s docker run --rm --name "$api_name" \
   --label "io.c3r.fixture=$run_id" --network "container:$tls_id" --read-only \
   --cap-drop ALL --security-opt no-new-privileges --memory 512m --cpus 2 \
