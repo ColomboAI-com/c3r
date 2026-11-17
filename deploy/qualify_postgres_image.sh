@@ -73,6 +73,7 @@ host_path() {
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
   -subj /CN=c3r-owned-postgres-fixture -addext subjectAltName=IP:127.0.0.1 \
   -keyout "$(host_path "$scratch/server.key")" -out "$(host_path "$scratch/server.crt")" >/dev/null
+chmod 644 "$scratch/server.crt"
 fixture_mount="type=bind,source=$(host_path "$scratch"),target=/certs,readonly"
 common=(--detach --label "io.c3r.fixture=$run_id" --memory 384m --cpus 1
   --tmpfs /var/lib/postgresql/data:rw,size=256m --tmpfs /tmp:rw,size=16m
@@ -80,7 +81,7 @@ common=(--detach --label "io.c3r.fixture=$run_id" --memory 384m --cpus 1
 stage=tls-fixture
 tls_id="$(docker run "${common[@]}" --name "$tls_name" --network none \
   --mount "$fixture_mount" "$pg_image" sh -c \
-  'cp /certs/server.key /tmp/server.key && chmod 600 /tmp/server.key && chown postgres:postgres /tmp/server.key && exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/certs/server.crt -c ssl_key_file=/tmp/server.key')"
+  'cp /certs/server.key /tmp/server.key && cp /certs/server.crt /tmp/server.crt && chmod 600 /tmp/server.key && chown postgres:postgres /tmp/server.key && exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/tmp/server.crt -c ssl_key_file=/tmp/server.key')"
 stage=plaintext-fixture
 plain_id="$(docker run "${common[@]}" --name "$plain_name" --network "container:$tls_id" \
   "$pg_image" postgres -p 5433 -c ssl=off)"
@@ -94,7 +95,11 @@ for pair in "$tls_id:5432" "$plain_id:5433"; do
     fi
     sleep 0.2
   done
-  [[ "$ready" == true ]] || { echo 'Fixture readiness failed' >&2; exit 1; }
+  if [[ "$ready" != true ]]; then
+    state="$(docker inspect --format '{{.State.ExitCode}} {{.State.OOMKilled}}' "${pair%:*}")"
+    echo "POSTGRES_FIXTURE_NOT_READY:${pair##*:}:$state" >&2
+    exit 1
+  fi
 done
 mounts=()
 for directory in tests; do
