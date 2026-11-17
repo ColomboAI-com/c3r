@@ -24,17 +24,43 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build --pull --tag c3r:ci .
+      - id: image_build
+        run: docker build --pull --tag c3r:ci .
       - run: docker run --rm c3r:ci python -c 'import c3r.serve'
       - name: Scan image for high and critical vulnerabilities
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           version: v0.74.0
           image-ref: c3r:ci
+          scanners: vuln
           format: json
           output: trivy-image.json
           severity: HIGH,CRITICAL
           exit-code: '1'
+      - name: Scan API image for secrets at every severity
+        id: secret_scan
+        if: always() && steps.image_build.outcome == 'success'
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          version: v0.74.0
+          image-ref: c3r:ci
+          scanners: secret
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          format: json
+          output: trivy-api-secrets-private.json
+          exit-code: '1'
+      - name: Record API secret counts without exporting matches
+        if: always()
+        run: |
+          python .github/scripts/secret_summary.py --input trivy-api-secrets-private.json --output trivy-api-secret-summary.json --image-id "$(docker image inspect c3r:ci --format '{{.Id}}')" --source-commit "$(git rev-parse HEAD)" --scanner-outcome "${{ steps.secret_scan.outcome }}"
+      - name: Preserve sanitized API secret summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-api-secret-summary-${{ github.run_id }}
+          path: trivy-api-secret-summary.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Preserve scan findings
         if: always()
         uses: actions/upload-artifact@v4
@@ -48,7 +74,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build --pull --file Dockerfile.retention --tag c3r-retention:ci .
+      - id: image_build
+        run: docker build --pull --file Dockerfile.retention --tag c3r-retention:ci .
       - name: Verify retention entrypoint
         run: |
           test "$(docker image inspect c3r-retention:ci --format '{{json .Config.Cmd}}')" = '["python","-m","c3r.retention_job"]'
@@ -58,10 +85,35 @@ jobs:
         with:
           version: v0.74.0
           image-ref: c3r-retention:ci
+          scanners: vuln
           format: json
           output: trivy-retention-image.json
           severity: HIGH,CRITICAL
           exit-code: '1'
+      - name: Scan retention image for secrets at every severity
+        id: secret_scan
+        if: always() && steps.image_build.outcome == 'success'
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          version: v0.74.0
+          image-ref: c3r-retention:ci
+          scanners: secret
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          format: json
+          output: trivy-retention-secrets-private.json
+          exit-code: '1'
+      - name: Record retention secret counts without exporting matches
+        if: always()
+        run: |
+          python .github/scripts/secret_summary.py --input trivy-retention-secrets-private.json --output trivy-retention-secret-summary.json --image-id "$(docker image inspect c3r-retention:ci --format '{{.Id}}')" --source-commit "$(git rev-parse HEAD)" --scanner-outcome "${{ steps.secret_scan.outcome }}"
+      - name: Preserve sanitized retention secret summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-retention-secret-summary-${{ github.run_id }}
+          path: trivy-retention-secret-summary.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Preserve retention scan findings
         if: always()
         uses: actions/upload-artifact@v4
