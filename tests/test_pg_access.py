@@ -11,6 +11,14 @@ import importlib.util
 import os
 import unittest
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+import sqlite3
+import threading
+import json
+import subprocess
+import sys
+from typing import Any
+from unittest.mock import patch
 
 from c3r.api_access import IssuedKey
 
@@ -24,6 +32,7 @@ class PostgresAccessStoreParityTests(unittest.TestCase):
         from c3r.pg_access import PostgresAccessStore
         self.now = [1_000_000.0]
         self.store = PostgresAccessStore(DSN, clock=lambda: self.now[0], pool_size=4)
+        self.addCleanup(self.store.close)
         self.tenant = "t" + uuid.uuid4().hex
         self.project = "p" + uuid.uuid4().hex
         self.store.create_project(self.tenant, self.project, rpm=600, key_rps=2)
@@ -64,8 +73,113 @@ class PostgresAccessStoreParityTests(unittest.TestCase):
         self.assertTrue(self.store.admit(principal))
         self.assertTrue(self.store.admit(principal))
         self.assertFalse(self.store.admit(principal))  # key_rps=2 exhausted this second
-        self.now[0] += 1  # next second window
+        self.now[0] += 1
         self.assertTrue(self.store.admit(principal))
+
+    def test_concurrent_first_window_never_exceeds_project_quota(self) -> None:
+        project = "p" + uuid.uuid4().hex
+        self.store.create_project(self.tenant, project, rpm=1, key_rps=1)
+        keys = [self.store.issue_key(self.tenant, project, {"models:read"}) for _ in range(8)]
+        principals = [self.store.authenticate(key.secret) for key in keys]
+        self.assertTrue(all(principal is not None for principal in principals))
+        start = threading.Barrier(8)
+
+        def attempt(index: int) -> bool:
+            start.wait(timeout=5)
+            principal = principals[index]
+            assert principal is not None
+            return self.store.admit(principal)
+
+        with ThreadPoolExecutor(max_workers=8) as workers:
+            results = list(workers.map(attempt, range(8)))
+        self.assertEqual(sum(results), 1)
+
+    def test_failed_connections_do_not_permanently_consume_pool_capacity(self) -> None:
+        driver: Any = importlib.import_module("pg8000.dbapi")
+        unknown_key = "c3r_sk_live_" + "0" * 24 + "_" + "a" * 43
+        # Break and discard the initially pooled connection at the DB boundary.
+        with patch.object(driver.Connection, "cursor", side_effect=driver.InterfaceError("fixture")):
+            with self.assertRaises((driver.Error, sqlite3.Error, OSError)):
+                self.store.authenticate(unknown_key)
+        with patch.object(driver, "connect", side_effect=driver.InterfaceError("fixture")):
+            for _ in range(4):
+                with self.assertRaises((driver.Error, sqlite3.Error, OSError)):
+                    self.store.authenticate(unknown_key)
+        outcome: list[object] = []
+
+        def recover() -> None:
+            try:
+                outcome.append(self.store.authenticate(unknown_key))
+            except Exception as error:
+                outcome.append(type(error).__name__)
+
+        thread = threading.Thread(target=recover, daemon=True)
+        thread.start()
+        thread.join(timeout=3)
+        self.assertFalse(thread.is_alive(), "failed connection reservations leaked pool capacity")
+        self.assertEqual(outcome, [None])
+
+    def test_database_error_is_normalized_without_exporting_driver_diagnostics(self) -> None:
+        driver: Any = importlib.import_module("pg8000.dbapi")
+        with patch.object(driver.Connection, "cursor", side_effect=driver.InterfaceError("PRIVATE_DB_DETAIL")):
+            with self.assertRaisesRegex(OSError, "^access store unavailable$"):
+                self.store.project_usage(self.tenant, self.project)
+
+    def test_pool_wait_is_bounded_when_all_connections_are_busy(self) -> None:
+        from c3r.pg_access import PostgresAccessStore
+        driver: Any = importlib.import_module("pg8000.dbapi")
+        store = PostgresAccessStore(DSN, pool_size=1, pool_timeout_seconds=0.05)
+        self.addCleanup(store.close)
+        entered, release = threading.Event(), threading.Event()
+        original: Any = driver.Cursor.execute
+
+        def execute(cursor: Any, operation: str, *args: Any, **kwargs: Any) -> Any:
+            entered.set()
+            release.wait(timeout=2)
+            return original(cursor, operation, *args, **kwargs)
+
+        failures: list[Exception] = []
+
+        def hold() -> None:
+            try:
+                store.project_usage(self.tenant, self.project)
+            except Exception as error:
+                failures.append(error)
+
+        with patch.object(driver.Cursor, "execute", execute):
+            thread = threading.Thread(target=hold, daemon=True)
+            thread.start()
+            try:
+                self.assertTrue(entered.wait(timeout=2))
+                with self.assertRaisesRegex(OSError, "^access store unavailable$"):
+                    store.project_usage(self.tenant, self.project)
+            finally:
+                release.set()
+                thread.join(timeout=2)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(failures, [])
+
+    def test_operator_cli_issues_revokes_and_purges_the_selected_postgres_store(self) -> None:
+        tenant, project = "t" + uuid.uuid4().hex, "p" + uuid.uuid4().hex
+
+        def command(*arguments: str):
+            run = subprocess.run([sys.executable, "-m", "c3r.key_management", "--backend", "postgres",
+                "--dsn-env", "C3R_TEST_PG_DSN", *arguments, "--tenant", tenant, "--project", project],
+                capture_output=True, text=True, timeout=10)
+            self.assertEqual(run.returncode, 0, "selected-backend operator command refused")
+            return json.loads(run.stdout)
+
+        self.assertEqual(command("project")["status"], "created")
+        issued = command("issue", "--scope", "models:read")
+        principal = self.store.authenticate(issued["api_key"])
+        self.assertIsNotNone(principal)
+        assert principal is not None
+        self.store.record_usage(principal, "req_" + uuid.uuid4().hex, route="/v1/models",
+            model=None, status=200, latency_ms=1, input_tokens=None, output_tokens=None,
+            system_one_invocations=None, system_two_invocations=None)
+        self.assertEqual(command("purge", "--retention-seconds", "60")["usage_deleted"], 1)
+        self.assertEqual(command("revoke", "--key-id", issued["api_key_id"])["status"], "revoked")
+        self.assertIsNone(self.store.authenticate(issued["api_key"]))
 
     def test_usage_roundtrip_is_payload_free(self) -> None:
         issued = self._issue({"responses:write"})

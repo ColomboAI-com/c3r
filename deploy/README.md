@@ -48,3 +48,22 @@ docker exec c3r-core-private python -m c3r.key_management \
   --scope decide:write --scope models:read --live --ttl-seconds 31536000
 ```
 Deliver the printed key via a secret store, never chat/logs.
+
+For the optional PostgreSQL backend, install the `postgres` extra and inject
+`C3R_API_ACCESS_DSN` through the approved secret store. Serving and administration
+must select the same backend and database. Do not pass a DSN on the command line:
+
+```bash
+python -m c3r.key_management --backend postgres --dsn-env C3R_API_ACCESS_DSN \
+  project --tenant <t> --project <p>
+python -m c3r.key_management --backend postgres --dsn-env C3R_API_ACCESS_DSN \
+  issue --tenant <t> --project <p> --scope models:read --scope responses:write
+python -m c3r.key_management --backend postgres --dsn-env C3R_API_ACCESS_DSN \
+  purge --tenant <t> --project <p> --retention-seconds 2592000
+```
+
+The backend also defaults from `C3R_API_ACCESS_BACKEND` when set. PostgreSQL
+commands reject `--database` to prevent silently administering a SQLite file.
+The SQLite `backup`/`restore` commands do not support PostgreSQL; qualify its
+database backup, deletion and recovery procedure separately. Local parity tests
+do not qualify a deployed database, TLS, backups, IAM or production traffic.

@@ -5,6 +5,8 @@ key into source control or ordinary logs. This CLI is not a public admin API.
 """
 import argparse
 import json
+import os
+import re
 import sqlite3
 import time
 from pathlib import Path
@@ -15,7 +17,10 @@ from .credential_recovery import copy_credentials
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--database", type=Path, required=True)
+    parser.add_argument("--backend", choices=("sqlite", "postgres"),
+                        default=os.environ.get("C3R_API_ACCESS_BACKEND", "sqlite"))
+    parser.add_argument("--database", type=Path)
+    parser.add_argument("--dsn-env", help="name of the environment variable holding the PostgreSQL DSN")
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("backup", "restore"):
         command = commands.add_parser(name)
@@ -40,13 +45,29 @@ def main() -> int:
             command.add_argument("--limit", type=int, default=1000)
     args = parser.parse_args()
     try:
+        if args.backend not in {"sqlite", "postgres"}:
+            raise ValueError("supported access backend required")
+        if args.backend == "sqlite" and (args.database is None or args.dsn_env is not None):
+            raise ValueError("SQLite requires only its selected database file")
+        if args.backend == "postgres" and args.database is not None:
+            raise ValueError("PostgreSQL commands cannot select a SQLite file")
         if args.command in {"backup", "restore"}:
+            if args.backend != "sqlite" or args.database is None:
+                raise ValueError("PostgreSQL recovery requires a separately qualified database procedure")
             result = copy_credentials(args.database, args.destination,
                                       expected_sha256=args.expected_sha256
                                       if args.command == "restore" else None)
             print(json.dumps(result, sort_keys=True))
             return 0
-        store = AccessStore(args.database)
+        if args.backend == "postgres":
+            from .pg_access import PostgresAccessStore
+            variable = args.dsn_env or "C3R_API_ACCESS_DSN"
+            if re.fullmatch(r"[A-Z][A-Z0-9_]{0,127}", variable) is None:
+                raise ValueError("DSN environment variable name required")
+            store = PostgresAccessStore(os.environ.get(variable, ""))
+        else:
+            assert args.database is not None
+            store = AccessStore(args.database)
         if args.command == "project":
             store.create_project(args.tenant, args.project, rpm=args.rpm, key_rps=args.key_rps)
             result: object = {"status": "created"}
@@ -68,8 +89,8 @@ def main() -> int:
             result = store.project_usage(args.tenant, args.project)
         print(json.dumps(result, sort_keys=True))
         return 0
-    except (OSError, ValueError, sqlite3.Error):
-        print(json.dumps({"error": "key administration failed; check private database and inputs"}))
+    except (ImportError, OSError, ValueError, sqlite3.Error):
+        print(json.dumps({"error": "key administration failed; check selected store and inputs"}))
         return 1
 
 
