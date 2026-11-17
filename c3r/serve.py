@@ -91,6 +91,10 @@ def build_servers(
         raise ValueError("ingress host must be loopback or the TLS-host container interface")
     if port == backend_port:
         raise ValueError("ingress and backend ports must differ")
+    if "C3R_INTERNAL_READY_PORT" in values or "C3R_INTERNAL_READY_TOKEN" in values:
+        # Refuse incomplete maintenance configuration before loading a host or binding ingress.
+        _required(values, "C3R_INTERNAL_READY_TOKEN")
+        _required(values, "C3R_INTERNAL_READY_PORT")
     components = builder_loader(reference)()
     if isinstance(components, HostComponents):
         runtime, factory = components.runtime, components.factory

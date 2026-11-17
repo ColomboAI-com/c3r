@@ -7,6 +7,7 @@ import tempfile
 import threading
 import time
 import unittest
+from typing import NoReturn
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -43,6 +44,16 @@ def config():
 
 
 class ServeTests(unittest.TestCase):
+    def test_incomplete_internal_configuration_is_refused_before_host_loading(self):
+        values = config()
+        values["C3R_INTERNAL_READY_TOKEN"] = "internal-test-token-never-an-api-token"
+
+        def unexpected_loader(_reference: str) -> NoReturn:
+            raise AssertionError("invalid configuration reached host loading")
+
+        with self.assertRaisesRegex(ValueError, "C3R_INTERNAL_READY_PORT"):
+            build_servers(values, builder_loader=unexpected_loader)
+
     def test_internal_token_without_explicit_internal_port_fails_startup(self):
         values = config()
         values.update({"C3R_HOST_ENTRYPOINT": "c3r.staging_host:build",

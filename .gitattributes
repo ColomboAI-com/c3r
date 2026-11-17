@@ -1,3 +1,6 @@
 * text=auto eol=lf
 *.bat text eol=crlf
 *.cmd text eol=crlf
+
+# Qualification scripts must retain Linux-compatible line endings.
+*.sh text eol=lf
