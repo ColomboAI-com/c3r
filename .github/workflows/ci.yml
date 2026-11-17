@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: image_build
-        run: docker build --pull --tag c3r:ci .
+        run: docker build --pull --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" --tag c3r:ci .
       - run: docker run --rm c3r:ci python -c 'import c3r.serve'
       - name: Scan image for high and critical vulnerabilities
         uses: aquasecurity/trivy-action@v0.36.0
@@ -52,7 +52,7 @@ jobs:
       - name: Record API secret counts without exporting matches
         if: always()
         run: |
-          python .github/scripts/secret_summary.py --input trivy-api-secrets-private.json --output trivy-api-secret-summary.json --image-id "$(docker image inspect c3r:ci --format '{{.Id}}')" --source-commit "$(git rev-parse HEAD)" --scanner-outcome "${{ steps.secret_scan.outcome }}"
+          python .github/scripts/secret_summary.py --input trivy-api-secrets-private.json --output trivy-api-secret-summary.json --image-id "$(docker image inspect c3r:ci --format '{{.Id}}')" --source-commit "$(git rev-parse HEAD)" --image-source-commit "$(docker image inspect c3r:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" --scanner-outcome "${{ steps.secret_scan.outcome }}"
       - name: Preserve sanitized API secret summary
         if: always()
         uses: actions/upload-artifact@v4
@@ -75,7 +75,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: image_build
-        run: docker build --pull --file Dockerfile.retention --tag c3r-retention:ci .
+        run: docker build --pull --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" --file Dockerfile.retention --tag c3r-retention:ci .
       - name: Verify retention entrypoint
         run: |
           test "$(docker image inspect c3r-retention:ci --format '{{json .Config.Cmd}}')" = '["python","-m","c3r.retention_job"]'
@@ -105,7 +105,7 @@ jobs:
       - name: Record retention secret counts without exporting matches
         if: always()
         run: |
-          python .github/scripts/secret_summary.py --input trivy-retention-secrets-private.json --output trivy-retention-secret-summary.json --image-id "$(docker image inspect c3r-retention:ci --format '{{.Id}}')" --source-commit "$(git rev-parse HEAD)" --scanner-outcome "${{ steps.secret_scan.outcome }}"
+          python .github/scripts/secret_summary.py --input trivy-retention-secrets-private.json --output trivy-retention-secret-summary.json --image-id "$(docker image inspect c3r-retention:ci --format '{{.Id}}')" --source-commit "$(git rev-parse HEAD)" --image-source-commit "$(docker image inspect c3r-retention:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" --scanner-outcome "${{ steps.secret_scan.outcome }}"
       - name: Preserve sanitized retention secret summary
         if: always()
         uses: actions/upload-artifact@v4
