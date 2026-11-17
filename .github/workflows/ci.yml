@@ -26,7 +26,9 @@ jobs:
       - uses: actions/checkout@v4
       - id: image_build
         run: docker build --pull --label "org.opencontainers.image.revision=$(git rev-parse HEAD)" --tag c3r:ci .
-      - run: docker run --rm c3r:ci python -c 'import c3r.serve'
+      - run: docker run --rm --network none c3r:ci python -c 'import c3r.serve; import pg8000.dbapi'
+      - name: Qualify packaged PostgreSQL TLS and gateway
+        run: bash deploy/qualify_postgres_image.sh --run-local c3r:ci
       - name: Scan image for high and critical vulnerabilities
         uses: aquasecurity/trivy-action@v0.36.0
         with:

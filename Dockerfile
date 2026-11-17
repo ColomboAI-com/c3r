@@ -4,6 +4,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 RUN apk add --no-cache --upgrade \
     krb5-libs=1.22.3-r0 musl=1.2.6-r3 musl-utils=1.2.6-r3 zlib=1.4-r0
+COPY deploy/requirements-postgres.lock /tmp/requirements-postgres.lock
+RUN python -m pip install --disable-pip-version-check --no-cache-dir --only-binary=:all: \
+    --require-hashes --index-url https://pypi.org/simple -r /tmp/requirements-postgres.lock \
+    && python -m pip check \
+    && rm /tmp/requirements-postgres.lock
 RUN python -m pip uninstall -y setuptools wheel jaraco.context
 COPY --chown=10001:10001 c3r ./c3r
 USER 10001:10001

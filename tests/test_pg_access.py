@@ -13,17 +13,61 @@ import unittest
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 import sqlite3
+import ssl
+from types import SimpleNamespace
 import threading
 import json
 import subprocess
 import sys
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from c3r.api_access import IssuedKey
 
 DSN = os.environ.get("C3R_TEST_PG_DSN", "")
 _HAVE_DRIVER = importlib.util.find_spec("pg8000") is not None
+
+
+class PostgresTransportPolicyTests(unittest.TestCase):
+    def test_database_connection_requires_verified_tls_by_default(self) -> None:
+        from c3r.pg_access import PostgresAccessStore
+        driver: Any = SimpleNamespace(connect=MagicMock(), Error=RuntimeError)
+        with patch.dict("sys.modules", {"pg8000.dbapi": driver}):
+            store = PostgresAccessStore("postgresql://fixture@database.example/c3r")
+            self.addCleanup(store.close)
+        context = driver.connect.call_args.kwargs.get("ssl_context")
+        self.assertIsInstance(context, ssl.SSLContext)
+        assert isinstance(context, ssl.SSLContext)
+        self.assertTrue(context.check_hostname)
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+
+
+    def test_plaintext_is_explicit_and_limited_to_loopback(self) -> None:
+        from c3r.pg_access import PostgresAccessStore
+        driver: Any = SimpleNamespace(connect=MagicMock(), Error=RuntimeError)
+        with patch.dict("sys.modules", {"pg8000.dbapi": driver}):
+            for host in ("127.0.0.1", "localhost", "[::1]"):
+                store = PostgresAccessStore(f"postgresql://fixture@{host}/c3r?sslmode=disable")
+                store.close()
+                self.assertIs(driver.connect.call_args.kwargs.get("ssl_context"), False)
+                self.assertIn(driver.connect.call_args.kwargs["host"], {"127.0.0.1", "::1"})
+            for host in ("database.example", "10.0.0.1", "169.254.169.254"):
+                driver.connect.reset_mock()
+                with self.assertRaisesRegex(ValueError, "loopback"):
+                    PostgresAccessStore(f"postgresql://fixture@{host}/c3r?sslmode=disable")
+                driver.connect.assert_not_called()
+
+    def test_unsupported_duplicate_or_weak_tls_options_are_rejected(self) -> None:
+        from c3r.pg_access import PostgresAccessStore
+        driver: Any = SimpleNamespace(connect=MagicMock(), Error=RuntimeError)
+        for query in ("sslmode=require", "sslmode=verify-ca", "sslmode=prefer", "sslmode=",
+                      "sslmode=verify-full&sslmode=disable", "application_name=ignored",
+                      "sslrootcert=one&sslrootcert=two", "sslmode=disable&sslrootcert=ca.pem",
+                      "sslmode=verify-full&broken", "sslrootcert="):
+            with self.subTest(query=query), patch.dict("sys.modules", {"pg8000.dbapi": driver}):
+                with self.assertRaises(ValueError):
+                    PostgresAccessStore("postgresql://fixture@127.0.0.1/c3r?" + query)
+                driver.connect.assert_not_called()
 
 
 @unittest.skipUnless(DSN and _HAVE_DRIVER, "requires pg8000 and C3R_TEST_PG_DSN")
@@ -210,6 +254,33 @@ class PostgresAccessStoreParityTests(unittest.TestCase):
         assert isinstance(deleted, int)
         self.assertGreaterEqual(deleted, 1)
         self.assertEqual(self.store.project_usage(self.tenant, self.project), [])
+
+
+@unittest.skipUnless(DSN and _HAVE_DRIVER, "requires disposable PostgreSQL TLS fixture")
+class PostgresTLSConnectionTests(unittest.TestCase):
+    def test_untrusted_server_certificate_is_rejected(self) -> None:
+        from c3r.pg_access import PostgresAccessStore
+        untrusted = os.environ.get("C3R_TEST_PG_UNTRUSTED_DSN")
+        if not untrusted:
+            self.skipTest("requires untrusted TLS endpoint fixture")
+        with self.assertRaisesRegex(OSError, "^access store unavailable$"):
+            PostgresAccessStore(untrusted)
+
+    def test_trusted_certificate_for_the_wrong_host_is_rejected(self) -> None:
+        from c3r.pg_access import PostgresAccessStore
+        wrong_host = os.environ.get("C3R_TEST_PG_WRONG_HOST_DSN")
+        if not wrong_host:
+            self.skipTest("requires wrong-host TLS endpoint fixture")
+        with self.assertRaisesRegex(OSError, "^access store unavailable$"):
+            PostgresAccessStore(wrong_host)
+
+    def test_plaintext_server_cannot_downgrade_a_verified_connection(self) -> None:
+        from c3r.pg_access import PostgresAccessStore
+        plaintext = os.environ.get("C3R_TEST_PG_PLAINTEXT_DSN")
+        if not plaintext:
+            self.skipTest("requires plaintext endpoint fixture")
+        with self.assertRaisesRegex(OSError, "^access store unavailable$"):
+            PostgresAccessStore(plaintext)
 
 
 if __name__ == "__main__":

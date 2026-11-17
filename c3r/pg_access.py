@@ -12,17 +12,19 @@ from __future__ import annotations
 import hashlib
 import hmac
 import importlib
+import ipaddress
 import json
 import math
 import queue
 import re
 import secrets
+import ssl
 import threading
 import time
 from collections.abc import Callable, Generator
 from contextlib import contextmanager, suppress
 from typing import Any, cast
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qsl, unquote, urlparse
 
 from .api_access import KEY, SCOPES, IssuedKey, Principal
 
@@ -79,6 +81,33 @@ class PostgresAccessStore:
         parsed = urlparse(dsn)
         if parsed.scheme not in {"postgres", "postgresql"}:
             raise ValueError("Postgres DSN must use the postgres(ql) scheme")
+        if parsed.fragment:
+            raise ValueError("Postgres DSN fragments are not supported")
+        try:
+            pairs = parse_qsl(parsed.query, keep_blank_values=True, strict_parsing=True)
+        except ValueError:
+            raise ValueError("invalid Postgres transport options") from None
+        options = dict(pairs)
+        if (len(options) != len(pairs) or set(options) - {"sslmode", "sslrootcert"}
+                or any(not value for value in options.values())):
+            raise ValueError("unsupported or duplicate Postgres transport option")
+        sslmode = options.get("sslmode", "verify-full")
+        if sslmode not in {"verify-full", "disable"}:
+            raise ValueError("Postgres requires verify-full TLS or explicit loopback disable")
+        host = parsed.hostname or "127.0.0.1"
+        context: ssl.SSLContext | bool
+        if sslmode == "disable":
+            try:
+                loopback = host == "localhost" or ipaddress.ip_address(host).is_loopback
+            except ValueError:
+                loopback = False
+            if not loopback or "sslrootcert" in options:
+                raise ValueError("plaintext Postgres requires loopback without a root certificate")
+            if host == "localhost":
+                host = "127.0.0.1"  # Never resolve a plaintext connection through DNS.
+            context = False
+        else:
+            context = ssl.create_default_context(cafile=options.get("sslrootcert"))
         # Optional untyped DB-API driver; confined to this external boundary.
         driver: Any = importlib.import_module("pg8000.dbapi")
 
@@ -87,10 +116,11 @@ class PostgresAccessStore:
         self._params: dict[str, Any] = {
             "user": unquote(parsed.username or ""),
             "password": unquote(parsed.password or ""),
-            "host": parsed.hostname or "127.0.0.1",
+            "host": host,
             "port": parsed.port or 5432,
             "database": (parsed.path or "/").lstrip("/") or "postgres",
             "timeout": 2,
+            "ssl_context": context,
         }
         self._pool: queue.Queue[Any] = queue.Queue(maxsize=pool_size)
         self._size = pool_size

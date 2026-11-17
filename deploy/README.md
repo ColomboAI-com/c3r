@@ -7,8 +7,8 @@ backends (DeepSeek, CLM, Qwen) are separate containers and are not managed here.
 ```bash
 git clone --branch dev https://github.com/ColomboAI-com/c3r.git
 docker build -t c3r-core:dev c3r
-# Postgres backend (scale-out) also needs the driver in the image:
-#   add `RUN pip install pg8000` to the Dockerfile, or build with the postgres extra.
+# The API image includes hash-pinned PostgreSQL runtime dependencies.
+# No package installation is performed at container startup.
 ```
 
 ## Configure
@@ -67,3 +67,23 @@ commands reject `--database` to prevent silently administering a SQLite file.
 The SQLite `backup`/`restore` commands do not support PostgreSQL; qualify its
 database backup, deletion and recovery procedure separately. Local parity tests
 do not qualify a deployed database, TLS, backups, IAM or production traffic.
+
+## PostgreSQL transport
+
+The packaged driver is pinned with every transitive universal wheel in
+`deploy/requirements-postgres.lock`. Connection strings default to certificate-
+and hostname-verified TLS (`sslmode=verify-full`), with no plaintext fallback.
+For a private database CA, add `sslrootcert=/run/c3r/database-ca.pem` and mount
+that public CA certificate read-only. The key-administration CLI uses the same
+transport policy as the API.
+
+`sslmode=disable` is permitted only when explicitly selected for a literal
+loopback address or `localhost`, such as an approved local encrypted proxy or
+a disposable test database. This setting does not itself qualify that proxy.
+Remote plaintext, weak TLS modes, duplicate/unknown query options and empty
+certificate paths are refused. Passwords belong in the approved secret channel,
+not shell history or source control.
+
+A built image and local database tests do not establish production database
+IAM, at-rest encryption, recoverability, network admission or runtime readiness.
+Those remain deployment gates. Keep research collection and online learning off.
