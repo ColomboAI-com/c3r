@@ -81,8 +81,8 @@ jobs:
           docker save --output c3r-api-image.tar c3r:ci
           archive_sha="$(sha256sum c3r-api-image.tar | cut -d ' ' -f 1)"
           docker image rm c3r:ci
-          remaining="$(docker image ls --quiet --no-trunc --filter "id=$original")"
-          test -z "$remaining"
+          all_images="$(docker image ls --all --quiet --no-trunc)"
+          while IFS= read -r image_id; do test "$image_id" != "$original"; done <<< "$all_images"
           docker load --input c3r-api-image.tar
           restored="$(docker image inspect c3r:ci --format '{{.Id}}')"
           test "$restored" = "$original"
@@ -170,8 +170,8 @@ jobs:
           docker save --output c3r-retention-image.tar c3r-retention:ci
           archive_sha="$(sha256sum c3r-retention-image.tar | cut -d ' ' -f 1)"
           docker image rm c3r-retention:ci
-          remaining="$(docker image ls --quiet --no-trunc --filter "id=$original")"
-          test -z "$remaining"
+          all_images="$(docker image ls --all --quiet --no-trunc)"
+          while IFS= read -r image_id; do test "$image_id" != "$original"; done <<< "$all_images"
           docker load --input c3r-retention-image.tar
           restored="$(docker image inspect c3r-retention:ci --format '{{.Id}}')"
           test "$restored" = "$original"
