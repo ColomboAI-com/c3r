@@ -69,6 +69,42 @@ jobs:
           path: trivy-image.json
           if-no-files-found: ignore
           retention-days: 30
+      - name: Preserve qualified API image with verified round trip
+        if: success()
+        run: |
+          set -euo pipefail
+          test ! -e c3r-api-image.tar
+          original="$(docker image inspect c3r:ci --format '{{.Id}}')"
+          source="$(git rev-parse HEAD)"
+          revision="$(docker image inspect c3r:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
+          test "$revision" = "$source"
+          docker save --output c3r-api-image.tar c3r:ci
+          archive_sha="$(sha256sum c3r-api-image.tar | cut -d ' ' -f 1)"
+          docker image rm c3r:ci
+          remaining="$(docker image ls --quiet --no-trunc --filter "id=$original")"
+          test -z "$remaining"
+          docker load --input c3r-api-image.tar
+          restored="$(docker image inspect c3r:ci --format '{{.Id}}')"
+          test "$restored" = "$original"
+          test "$(sha256sum c3r-api-image.tar | cut -d ' ' -f 1)" = "$archive_sha"
+          python - "$original" "$archive_sha" "$source" <<'PY'
+          import json, sys
+          from pathlib import Path
+          value = dict(image_id=sys.argv[1], archive_sha256=sys.argv[2], source_commit=sys.argv[3],
+                       archive_bytes=Path('c3r-api-image.tar').stat().st_size, round_trip_verified=True,
+                       registry_deployment_qualified=False, production_ready=False)
+          Path('c3r-api-image-manifest.json').write_text(json.dumps(value, sort_keys=True)+'\n')
+          PY
+      - name: Upload qualified API build artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c3r-api-qualified-image-${{ github.run_id }}
+          path: |
+            c3r-api-image.tar
+            c3r-api-image-manifest.json
+          if-no-files-found: error
+          retention-days: 30
 
   retention-image-build:
     runs-on: ubuntu-latest
@@ -121,4 +157,40 @@ jobs:
           name: trivy-retention-image-${{ github.run_id }}
           path: trivy-retention-image.json
           if-no-files-found: ignore
+          retention-days: 30
+      - name: Preserve qualified retention image with verified round trip
+        if: success()
+        run: |
+          set -euo pipefail
+          test ! -e c3r-retention-image.tar
+          original="$(docker image inspect c3r-retention:ci --format '{{.Id}}')"
+          source="$(git rev-parse HEAD)"
+          revision="$(docker image inspect c3r-retention:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
+          test "$revision" = "$source"
+          docker save --output c3r-retention-image.tar c3r-retention:ci
+          archive_sha="$(sha256sum c3r-retention-image.tar | cut -d ' ' -f 1)"
+          docker image rm c3r-retention:ci
+          remaining="$(docker image ls --quiet --no-trunc --filter "id=$original")"
+          test -z "$remaining"
+          docker load --input c3r-retention-image.tar
+          restored="$(docker image inspect c3r-retention:ci --format '{{.Id}}')"
+          test "$restored" = "$original"
+          test "$(sha256sum c3r-retention-image.tar | cut -d ' ' -f 1)" = "$archive_sha"
+          python - "$original" "$archive_sha" "$source" <<'PY'
+          import json, sys
+          from pathlib import Path
+          value = dict(image_id=sys.argv[1], archive_sha256=sys.argv[2], source_commit=sys.argv[3],
+                       archive_bytes=Path('c3r-retention-image.tar').stat().st_size, round_trip_verified=True,
+                       registry_deployment_qualified=False, production_ready=False)
+          Path('c3r-retention-image-manifest.json').write_text(json.dumps(value, sort_keys=True)+'\n')
+          PY
+      - name: Upload qualified retention build artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c3r-retention-qualified-image-${{ github.run_id }}
+          path: |
+            c3r-retention-image.tar
+            c3r-retention-image-manifest.json
+          if-no-files-found: error
           retention-days: 30
