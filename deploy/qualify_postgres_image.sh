@@ -106,7 +106,7 @@ for file in scripts/run_controlled_pairs.py scripts/run_trace_control_dry_run.py
 done
 ca='sslmode=verify-full&sslrootcert=/fixtures/ca.pem'
 stage=container-test-suite
-timeout --signal=TERM --kill-after=10s 180s docker run --rm --name "$api_name" \
+timeout --signal=TERM --kill-after=10s 180s env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH docker --host "$endpoint" run --rm --name "$api_name" \
   --label "io.c3r.fixture=$run_id" --network "container:$tls_id" --read-only \
   --cap-drop ALL --security-opt no-new-privileges --memory 512m --cpus 2 \
   --tmpfs /tmp:rw,size=128m "${mounts[@]}" \
